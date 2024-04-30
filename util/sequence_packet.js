@@ -46,11 +46,34 @@ class SequencePacket {
         if (this.sequence.size > 0)
             this.sequence.clear();
 
-        this.sequence = new Map(JSON.parse(fs.readFileSync(`${_name}.json`)));
+        try {
+
+            this.sequence = new Map(JSON.parse(fs.readFileSync(`${_name}.json`)));
+
+        }catch (ex) {
+
+            console.log(`Failed in load file: ${_name}.json, exception: ${ex}`);
+
+            return false;
+        }
+
+        return true;
     }
 
     save(_name) {
-        fs.writeFileSync(`${_name}.json`, JSON.stringify(Array.from(this.sequence)));
+
+        try {
+
+            fs.writeFileSync(`${_name}.json`, JSON.stringify(Array.from(this.sequence)));
+
+        }catch (ex) {
+
+            console.log(`Failed in save file: ${_name}.json, exception: ${ex}`);
+
+            return false;
+        }
+
+        return true;
     }
 }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" standalone="yes" ?>
+
+<extracontents>
+
+	<themes>
+		<pangya_default src="pangya_default.xml" url="http://127.0.0.1:9988/off/patch_S4/extracontents/default/"/>
+	</themes>
+	
+</extracontents>

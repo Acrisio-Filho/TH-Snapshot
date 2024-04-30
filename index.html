@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <title>TH Snapshot</title>
+    <style>
+      * {
+        border: 0;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: gray;
+      }
+
+      input {
+        padding: 2px 3px;
+        border: 1px solid black;
+      }
+
+      .title {
+        margin-top: 20px;
+        margin-bottom: 10px;
+      }
+
+      #dLog {
+        margin-top: 20px;
+      }
+
+      #dListSnapshot {
+        margin-top: 20px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      #dListSnapshot button {
+        margin-top: 5px;
+        border: 1px solid white;
+        padding: 3px 10px;
+        background-color: black;
+        color: white;
+      }
+
+      #dListSnapshot button:hover {
+        cursor: pointer;
+        background-color: #555;
+      }
+
+      #dListLog {
+        margin-top: 20px;
+      }
+
+      #uListSnapshot {
+        margin-top: 5px;
+        list-style: none;
+        overflow: auto;
+      }
+
+      #dMakeSnapshot {
+        margin-top: 20px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      #dMakeSnapshot button {
+        border: 1px solid white;
+        padding: 2px 10px;
+        background-color: black;
+        color: white;
+      }
+
+      #dMakeSnapshot button:hover {
+        cursor: pointer;
+        background-color: #555;
+      }
+
+      #dMakeLog {
+        margin-top: 20px;
+        margin-bottom: 5px;
+      }
+
+      #dSnapshots {
+        display: flex;
+        gap: 20px;
+      }
+
+      #dServer {
+        margin-top: 20px;
+        display: none;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      #dServer button {
+        border: 1px solid white;
+        padding: 3px 10px;
+        background-color: black;
+        color: white;
+      }
+
+      #dServer button:hover {
+        cursor: pointer;
+        background-color: #555;
+      }
+
+      .cblack {
+        color: black;
+      }
+      .cyellow {
+        color: yellow;
+      }
+      .cred {
+        color: red;
+      }
+      .cgreen {
+        color: green;
+      }
+      .cblue {
+        color: blue;
+      }
+    </style>
+  </head>
+  <body>
+    <h2 class='title'>TH Snapshot</h2>
+    <span>Status</span>
+    <div id="dLog" class="cblack">Não está conectado com o host</div>
+    <div id="dServer">
+      <div id="dServerLog" class="cblack"></div>
+      <div style="display: flex; gap: 15px;">
+        <span>Servidor de Snapshot:</span>
+        <div id="dServerStatus" class="cred">Desligado</div>
+        <button id="bLigar" onClick="UpdateServer(1)">Ligar Servidor</button>
+        <button id="bDesligar" onClick="UpdateServer(0)" style="display: none">Desligar Servidor</button>
+      </div>
+    </div>
+    <div id="dSnapshots">
+      <div id="dMakeSnapshot">
+        <span>Criar Snapshot</span>
+        <div id="dMakeLog" class="cblack"></div>
+        <div style="display: flex; flex-direction: column; gap: 5px;">
+          <input id="iId" type="text" value="" placeholder="id">
+          <input id="iPass" type="password" value="" placeholder="password">
+          <button id="bMake" onClick="MakeSnapshot()">Criar Snapshot</button>
+        </div>
+      </div>
+      <div id="dListSnapshot">
+        <span>Lista de Snapshot</span>
+        <div>
+          <div id="dListLog" class="cblack"></div>
+          <ul id="uListSnapshot"></ul>
+          <button onClick="UpdateListSnapshot()">Atualizar lista de snapshot por id</button>
+        </div>
+      </div>
+    </div>
+    <script>
+
+      const HOST_WEBS = '127.0.0.1';
+      const PORT_WEBS = 9988;
+      const dLog = document.getElementById('dLog');
+      const dListLog = document.getElementById('dListLog');
+      const dListSnapshot = document.getElementById('dListSnapshot');
+      const uListSnapshot = document.getElementById('uListSnapshot');
+      const dMakeSnapshot = document.getElementById('dMakeSnapshot');
+      const dMakeLog = document.getElementById('dMakeLog');
+      const iId = document.getElementById('iId');
+      const iPass = document.getElementById('iPass');
+      const dServerLog = document.getElementById('dServerLog');
+      const dServerStatus = document.getElementById('dServerStatus');
+      const bLigar = document.getElementById('bLigar');
+      const bDesligar = document.getElementById('bDesligar');
+      const bMake = document.getElementById('bMake');
+
+      function MakeSnapshot() {
+
+        if (iId.value == '' || iPass.value == '') {
+
+          setMakeSnapshotLog('Preencha todos os campos!', 'cyellow');
+
+          return;
+        }
+
+        socket.send(JSON.stringify({
+          type: 1,
+          id: iId.value,
+          password: iPass.value
+        }));
+
+        dMakeLog.innerHTML = 'Criando o snapshot...';
+        dMakeLog.className = 'cblue';
+
+        window.event.target.style.pointerEvents = 'none';
+      }
+
+      function UpdateListSnapshot() {
+        socket.send(JSON.stringify({
+          type: 2
+        }));
+      }
+
+      function UpdateServer(state) {
+        socket.send(JSON.stringify({
+          type: 3,
+          state: state
+        }));
+
+        window.event.target.style.pointerEvents = 'none';
+      }
+
+      function setMakeSnapshotLog(log, className) {
+
+        if (window.mslog_timeout)
+          clearTimeout(window.mslog_timeout);
+
+        dMakeLog.innerHTML = log;
+        dMakeLog.className = className;
+
+        window.mslog_timeout = setTimeout(() => {
+          dMakeLog.innerHTML = '';
+          dMakeLog.className = 'cblack';
+        }, 3000);
+      }
+
+      function setListSnapshotLog(log, className) {
+
+        if (window.lslog_timeout)
+          clearTimeout(window.lslog_timeout);
+
+        dListLog.innerHTML = log;
+        dListLog.className = className;
+
+        window.lslog_timeout = setTimeout(() => {
+          dListLog.innerHTML = '';
+          dListLog.className = 'cblack';
+        }, 3000);
+      }
+
+      function setServerLog(log, className) {
+
+        if (window.slog_timeout)
+          clearTimeout(window.slog_timeout);
+
+        dServerLog.innerHTML = log;
+        dServerLog.className = className;
+
+        window.slog_timeout = setTimeout(() => {
+          dServerLog.innerHTML = '';
+          dServerLog.className = 'cblack';
+        }, 3000);
+      }
+
+      function createWS() {
+
+        const socket = new WebSocket(`ws://${HOST_WEBS}:${PORT_WEBS}`);
+
+        socket.onopen = (evt) => {
+
+          console.log(`Connected: ${evt}`);
+
+          dLog.innerHTML = 'Conectado com o host';
+          dLog.className = 'cgreen';
+
+          dListSnapshot.style.display = 'flex';
+          dMakeSnapshot.style.display = 'flex';
+          dServer.style.display = 'flex';
+
+          // request list of snapshot
+          socket.send(JSON.stringify({
+            type: 2
+          }));
+
+          // request status of server
+          socket.send(JSON.stringify({
+            type: 4
+          }));
+        }
+
+        socket.onmessage = (evt) => {
+
+          const req = JSON.parse(evt.data);
+
+          if (!req || req.type === undefined || isNaN(req.type)) {
+            console.log(`invalid evt: ${evt}`);
+            return;
+          }
+
+          switch (req.type) {
+            case 1:
+              {
+                if (req.error != 'success') {
+
+                  setMakeSnapshotLog(req.error, 'cred');
+
+                  bMake.style.pointerEvents = 'auto';
+
+                  break;
+                }
+
+                iId.value = '';
+                iPass.value = '';
+
+                setMakeSnapshotLog(`Criou o snapshot do id: "${req.id}" com sucesso!`, 'cgreen');
+
+                // request list snapshot
+                socket.send(JSON.stringify({
+                  type: 2
+                }));
+
+                bMake.style.pointerEvents = 'auto';
+                break;
+              }
+            case 2:
+              {
+
+                if (req.error != 'success') {
+                  setListSnapshotLog(req.error, 'cred');
+                  break;
+                }
+
+                setListSnapshotLog('Atualizou a lista de snapshot', 'cgreen');
+
+                uListSnapshot.innerHTML = '';
+
+                req.list.forEach((el) => {
+                  const li = document.createElement('li');
+                  li.innerHTML = el;
+                  uListSnapshot.appendChild(li);
+                });
+                break;
+              }
+            case 3:
+              {
+
+                if (req.error != 'success') {
+
+                  setServerLog(req.error, 'cred');
+
+                  bLigar.style.pointerEvents = 'auto';
+                  bDesligar.style.pointerEvents = 'auto';
+
+                  break;
+                }
+
+                // request status of server
+                socket.send(JSON.stringify({
+                  type: 4
+                }));
+
+                bLigar.style.pointerEvents = 'auto';
+                bDesligar.style.pointerEvents = 'auto';
+                break;
+              }
+            case 4:
+              {
+                
+                if (req.error != 'success') {
+                  setServerLog(req.error, 'cred');
+                  break;
+                }
+
+                if (req.state == 0) {
+
+                  dServerStatus.innerHTML = 'Desligado';
+                  dServerStatus.className = 'cred';
+                  bLigar.style.display = 'block';
+                  bDesligar.style.display = 'none';
+
+                }else if (req.state == 1) {
+
+                  dServerStatus.innerHTML = 'Ligado';
+                  dServerStatus.className = 'cgreen';
+                  bLigar.style.display = 'none';
+                  bDesligar.style.display = 'block';
+                }
+                break;
+              }
+          }
+        }
+
+        socket.onclose = () => {
+          dLog.innerHTML = 'Não está conectado com o host';
+          dLog.className = 'cred';
+          dListSnapshot.style.display = 'none';
+          dMakeSnapshot.style.display = 'none';
+          dServer.style.display = 'none';
+          setTimeout(() => hasCreateWS(), 1000);
+        }
+
+        return socket;
+      }
+
+      var socket = createWS();
+
+      function hasCreateWS() {
+        socket = createWS();
+      }
+    </script>
+  </body>
+</html>
