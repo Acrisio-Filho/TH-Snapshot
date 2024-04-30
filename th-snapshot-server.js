@@ -117,7 +117,7 @@ class THSnapshotServer {
                                 // close
                                 if (!login_packets.load(`login_packets-${socket.player_id}`)) {
 
-                                    socket.end();
+                                    socket.destroy();
 
                                     return;
                                 }
@@ -248,7 +248,7 @@ class THSnapshotServer {
                                 // close
                                 if (!game_packets.load(`game_packets-${socket.player_id}`)) {
 
-                                    socket.end();
+                                    socket.destroy();
 
                                     return;
                                 }

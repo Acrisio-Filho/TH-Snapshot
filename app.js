@@ -63,7 +63,7 @@ const http_server = http.createServer(function (req, res) {
 	            return;
 	        }
 
-            res.writeHead(200);
+            res.setHeader('Content-Type', 'aspx');
             res.end(data);
 	    });
 
