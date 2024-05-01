@@ -28,6 +28,25 @@ class Packet {
 		}
 	}
 
+	static unMakedRawPacket(_type, _buff) {
+
+	    const pckt = new Packet();
+
+	    _buff = Buffer.concat([Buffer.alloc(2), _buff]);
+
+	    _buff.writeUInt16LE(_type);
+
+	    pckt.reAlloc(_buff.length, true);
+
+        _buff.copy(pckt.buff, pckt.offset, 0, _buff.length);
+
+        pckt.offset = 0;
+
+        pckt.type = pckt.Decode2();
+
+        return pckt;
+	}
+
 	reAlloc(_size, _reduce = false) {
 
 		if (_size <= this.size) {

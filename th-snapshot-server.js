@@ -6,11 +6,163 @@ const { randomInt } = require('node:crypto');
 const net = require('net');
 const Packet = require('./packet/packet');
 const SequencePacket = require('./util/sequence_packet');
+const PacketCallback = require('./util/packet_callback');
+const PacketAnalyzer = require('./util/packet_analyzer');
+
+const kServerType = {
+    LOGIN_SERVER: 0,
+    GAME_SEVER: 1
+}
 
 class THSnapshotServer {
 
     login_server = null;
     game_server = null;
+
+    login_packets = new SequencePacket();
+    game_packets = new SequencePacket();
+
+    login_packet_callbacks = new PacketAnalyzer();
+    game_packet_callbacks = new PacketAnalyzer();
+
+    login_client_packet_callbacks = new PacketAnalyzer();
+    game_client_packet_callbacks = new PacketAnalyzer();
+
+    login_packet_conflict_callbacks = new PacketAnalyzer();
+    game_packet_conflict_callbacks = new PacketAnalyzer();
+
+    constructor() {
+
+        // Login Packet callbacks
+        this.login_packet_callbacks.push([
+            new PacketCallback(
+                1,
+                false,
+                function(_pckt, _socket) {
+
+                    _socket.player_id = _pckt.DecodeStr();
+
+                    // close
+                    if (!this.login_packets.load(`login_packets-${_socket.player_id}`)) {
+
+                        _socket.destroy();
+
+                        return true;
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            )
+        ]);
+
+        // Game Packet Callbacks
+        this.game_packet_callbacks.push([
+            new PacketCallback(
+                2,
+                false,
+                function(_pckt, _socket) {
+
+                    _socket.player_id = _pckt.DecodeStr();
+
+                    // close
+                    if (!this.game_packets.load(`game_packets-${_socket.player_id}`)) {
+
+                        _socket.destroy();
+
+                        return true;
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x184,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0x26A);
+
+                    p.Encode4(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            )
+        ]);
+
+        // Login client packet callbacks
+        this.login_client_packet_callbacks.push([
+            new PacketCallback(
+                2,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(2);
+
+                    let bf = Buffer.alloc(92);
+
+                    bf.write('Nico', 0, 64, 'utf8');
+                    bf.write('127.0.0.1', 52, 70, 'utf8');
+                    bf.writeUInt32LE(777, 40);
+                    bf.writeUInt32LE(1000, 44);
+                    bf.writeUInt32LE(20201, 70);
+
+                    p.Encode1(1);
+                    p.EncodeBuffer(bf);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            )
+        ]);
+
+        // game client packet callbacks
+
+        // login packet conflict callbacks
+
+        // game packet conflict callbacks
+        this.game_packet_conflict_callbacks.push([
+            new PacketCallback(
+                8,
+                false,
+                function(_pckt, _objKey) {
+
+                    _pckt.Discart(13);
+
+                    let modo = _pckt.Decode1();
+
+                    console.log(`Request make room, modo: ${modo}`);
+
+                    _objKey.key = `${_pckt.type}-${modo}`;
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x2F,
+                false,
+                function(_pckt, _objKey) {
+
+                    let uid = _pckt.Decode4();
+                    let opt = _pckt.Decode1();
+
+                    console.log(`Request info do player: ${uid}, opt: ${opt}`);
+
+                    _objKey.key = `${_pckt.type}-${opt}`;
+
+                    return false;
+                }
+                .bind(this)
+            )
+        ]);
+    }
 
     is_listening() {
         return this.login_server !== null && this.game_server !== null;
@@ -68,113 +220,7 @@ class THSnapshotServer {
 
         if (this.login_server === null) {
 
-            this.login_server = net.createServer(function(socket) {
-
-                const login_packets = new SequencePacket();
-
-                console.log('[L] Socket connected');
-
-                socket.player_id = 'Unknown';
-                socket.parseKey = randomInt(0, 16);
-                socket.data_bf = Buffer.alloc(0);
-
-                socket.on('error', (err) => {
-                    console.log('[L] socket error: ', err);
-                });
-
-                socket.on('end', () => {
-                    console.log('[L] socket end');
-                });
-
-                socket.on('close', () => {
-                    console.log('[L] socket closed');
-                });
-
-                socket.on('data', function(data) {
-
-                    socket.data_bf = Buffer.concat([socket.data_bf, data]);
-
-                    while (socket.data_bf.length > 4) {
-
-                        let bf2 = socket.data_bf.readUInt16LE(1);
-
-                        if ((bf2 + 4) > socket.data_bf.length)
-                            return;
-
-                        bf2 = socket.data_bf.slice(0, bf2 + 4);
-
-                        socket.data_bf = socket.data_bf.slice(bf2.length);
-
-                        const pckt = new Packet();
-
-                        pckt.unMakePacket(bf2, socket.parseKey);
-
-                        console.log(`[L] Packet.type: ${pckt.type}`);
-
-                        switch (pckt.type) {
-                            case 1:
-                                socket.player_id = pckt.DecodeStr();
-                                // close
-                                if (!login_packets.load(`login_packets-${socket.player_id}`)) {
-
-                                    socket.destroy();
-
-                                    return;
-                                }
-                                break;
-                        }
-
-                        pckt.printToConsole();
-
-                        if (login_packets.has_sequence(`${pckt.type}`)) {
-
-                            let sequences = login_packets.get_sequence(`${pckt.type}`);
-
-                            if (sequences.length == 1)
-                                sequences = sequences.shift();
-                            else
-                                sequences = [];
-
-                            for (const obj of sequences) {
-
-                                if (obj.type == 2) {
-
-                                    const pckt4 = new Packet(2);
-
-                                    let bf = Buffer.alloc(92);
-
-                                    bf.write('Nico', 0, 64, 'utf8');
-                                    bf.write('127.0.0.1', 52, 70, 'utf8');
-                                    bf.writeUInt32LE(777, 40);
-                                    bf.writeUInt32LE(1000, 44);
-                                    bf.writeUInt32LE(20201, 70);
-
-                                    pckt4.Encode1(1);
-                                    pckt4.EncodeBuffer(bf);
-
-                                    socket.write(pckt4.makePacketComplete(socket.parseKey));
-
-                                }else {
-
-                                    const pckt3 = new Packet(obj.type);
-
-                                    pckt3.EncodeBuffer(Buffer.from(obj.data));
-
-                                    socket.write(pckt3.makePacketComplete(socket.parseKey));
-                                }
-                            }
-                        }
-                    }
-                });
-
-                // First Packet
-                const pckt2 = new Packet(0);
-
-                pckt2.Encode4(socket.parseKey);
-                pckt2.Encode4(777);
-
-                socket.write(pckt2.makePacketComplete(-1));
-            });
+            this.login_server = net.createServer(this.onConnectedSocketLoginServer.bind(this));
 
             this.login_server.on('error', (err) => {
                 console.log('login server error: ', err);
@@ -199,120 +245,7 @@ class THSnapshotServer {
 
         if (this.game_server === null) {
 
-            this.game_server = net.createServer(function(socket) {
-
-                const game_packets = new SequencePacket();
-
-                console.log('[G] Socket connected');
-
-                socket.player_id = 'Unknown';
-                socket.parseKey = randomInt(0, 16);
-                socket.data_bf = Buffer.alloc(0);
-
-                socket.on('error', (err) => {
-                    console.log('[G] socket error: ', err);
-                });
-
-                socket.on('end', () => {
-                    console.log('[G] socket end');
-                });
-
-                socket.on('close', () => {
-                    console.log('[G] socket closed');
-                });
-
-                socket.on('data', (data) => {
-
-                    socket.data_bf = Buffer.concat([socket.data_bf, data]);
-
-                    while (socket.data_bf.length > 4) {
-
-                        let bf2 = socket.data_bf.readUInt16LE(1);
-
-                        if ((bf2 + 4) > socket.data_bf.length)
-                            return;
-
-                        bf2 = socket.data_bf.slice(0, bf2 + 4);
-
-                        socket.data_bf = socket.data_bf.slice(bf2.length);
-
-                        const pckt = new Packet();
-
-                        pckt.unMakePacket(bf2, socket.parseKey);
-
-                        console.log(`[G] Packet.type: ${pckt.type}`);
-
-                        switch (pckt.type) {
-                            case 2:
-                                socket.player_id = pckt.DecodeStr();
-                                // close
-                                if (!game_packets.load(`game_packets-${socket.player_id}`)) {
-
-                                    socket.destroy();
-
-                                    return;
-                                }
-                                break;
-                        }
-
-                        pckt.printToConsole();
-
-                        if (game_packets.has_sequence(`${pckt.type}`)) {
-
-                            let sequences = game_packets.get_sequence(`${pckt.type}`);
-
-                            if (sequences.length == 1)
-                                sequences = sequences.shift();
-                            else if (pckt.type == 0x2F) {
-
-                                let uid = pckt.Decode4();
-                                let opt = pckt.Decode1();
-
-                                console.log(`Request info do player: ${uid}, opt: ${opt}`);
-
-                                if (game_packets.has_sequence(`${pckt.type}-${opt}`))
-                                    sequences = game_packets.get_sequence(`${pckt.type}-${opt}`).shift();
-                                else
-                                    sequences = [];
-
-                            }else if (pckt.type == 8) {
-
-                                pckt.Discart(13);
-
-                                let modo = pckt.Decode1();
-
-                                console.log(`Request make room: modo: ${modo}`);
-
-                                if (game_packets.has_sequence(`${pckt.type}-${modo}`))
-                                    sequences = game_packets.get_sequence(`${pckt.type}-${modo}`).shift();
-                                else
-                                    sequences = [];
-
-                            }else
-                                sequences = [];
-
-                            for (const obj of sequences) {
-
-                                const pckt3 = new Packet(obj.type);
-
-                                pckt3.EncodeBuffer(Buffer.from(obj.data));
-
-                                socket.write(pckt3.makePacketComplete(socket.parseKey));
-                            }
-                        }
-                    }
-                });
-
-                // First Packet
-                const pckt2 = new Packet(0x3F);
-
-                pckt2.Encode1(1);
-                pckt2.Encode1(1);
-                pckt2.Encode1(socket.parseKey & 0xFF);
-                pckt2.EncodeStr('127.0.0.1');
-
-                socket.write(pckt2.makePacketComplete(-1));
-            });
+            this.game_server = net.createServer(this.onConnectedSocketGameServer.bind(this));
 
             this.game_server.on('error', (err) => {
                 console.log('game_server error: ', err);
@@ -339,6 +272,236 @@ class THSnapshotServer {
             initialized = 2;
 
         return true;
+    }
+
+    checkHavePacket(_socket, _server_type) {
+
+        const kPacketHeaderLength = 4;
+
+        let length = 0;
+        let bContinue = true;
+
+        while (bContinue && _socket.data_bf.length > kPacketHeaderLength) {
+
+            length = _socket.data_bf.readUInt16LE(1);
+
+            if ((length + kPacketHeaderLength) > _socket.data_bf.length)
+                return;
+
+            const pckt = new Packet();
+
+            pckt.unMakePacket(
+                _socket.data_bf.slice(0, length + kPacketHeaderLength),
+                _socket.parseKey
+            );
+
+            _socket.data_bf = _socket.data_bf.slice(pckt.size);
+
+            if (_server_type == kServerType.LOGIN_SERVER)
+                bContinue = this.translateLoginPacket(_socket, pckt);
+            else if (_server_type == kServerType.GAME_SEVER)
+                bContinue = this.translateGamePacket(_socket, pckt);
+        }
+    }
+
+    conflictSequencePacket(_seqs, _ctx_conflict) {
+
+        if (_seqs.length <= 0)
+            return [];
+        else if (_seqs.length == 1 || !_ctx_conflict || !_ctx_conflict.pckt
+                || !_ctx_conflict.packet_conflict_callbacks
+                || !_ctx_conflict.packet_conflict_callbacks.has(_ctx_conflict.pckt.type))
+            _seqs = _seqs.map(el => el[1]).shift();
+        else {
+
+            const objKey = {
+                key: `${_ctx_conflict.pckt.type}`
+            };
+
+            _ctx_conflict.packet_conflict_callbacks.execute(
+                _ctx_conflict.pckt,
+                objKey
+            );
+
+            _seqs = _seqs.filter(el => el[0].includes(objKey.key)).map(el => el[1]);
+
+            if (_seqs.length == 0)
+                return [];
+
+            _seqs = _seqs.shift();
+        }
+
+        return _seqs;
+    }
+
+    translateLoginPacket(_socket, _pckt) {
+
+        console.log(`[L] Packet.type: ${_pckt.type}`);
+
+        _pckt.printToConsole();
+
+        const status_translate = this.login_packet_callbacks.execute(_pckt, _socket);
+
+        if (status_translate.skip || status_translate.exit)
+            return !status_translate.exit;
+
+        // reset _pckt
+        _pckt.reset();
+        _pckt.Decode2(); // type
+
+        if (this.login_packets.has_sequence(`${_pckt.type}`)) {
+
+            let sequences = this.login_packets.get_sequence(
+                `${_pckt.type}`,
+                this.conflictSequencePacket.bind(this),
+                {
+                    pckt: _pckt,
+                    packet_conflict_callbacks: this.login_packet_conflict_callbacks
+                }
+            );
+
+            for (const obj of sequences) {
+
+                const p = Packet.unMakedRawPacket(obj.type, Buffer.from(obj.data));
+
+                const status_analyzer = this.login_client_packet_callbacks.execute(p, _socket);
+
+                if (status_analyzer.skip)
+                    continue;
+
+                if (status_analyzer.exit)
+                    return false;
+
+                // change offset to send packet
+                p.offset = p.size;
+
+                _socket.write(p.makePacketComplete(_socket.parseKey));
+            }
+        }
+
+        return true;
+    }
+
+    translateGamePacket(_socket, _pckt) {
+
+        console.log(`[G] Packet.type: ${_pckt.type}`);
+
+        _pckt.printToConsole();
+
+        const status_translate = this.game_packet_callbacks.execute(_pckt, _socket);
+
+        if (status_translate.skip || status_translate.exit)
+            return !status_translate.exit;
+
+        // reset _pckt
+        _pckt.reset();
+        _pckt.Decode2(); // type
+
+        if (this.game_packets.has_sequence(`${_pckt.type}`)) {
+
+            let sequences = this.game_packets.get_sequence(
+                `${_pckt.type}`,
+                this.conflictSequencePacket.bind(this),
+                {
+                    pckt: _pckt,
+                    packet_conflict_callbacks: this.game_packet_conflict_callbacks
+                }
+            );
+
+            for (const obj of sequences) {
+
+                const p = Packet.unMakedRawPacket(obj.type, Buffer.from(obj.data));
+
+                const status_analyzer = this.game_client_packet_callbacks.execute(p, _socket);
+
+                if (status_analyzer.skip)
+                    continue;
+
+                if (status_analyzer.exit)
+                    return false;
+
+                // change offset to send packet
+                p.offset = p.size;
+
+                _socket.write(p.makePacketComplete(_socket.parseKey));
+            }
+        }
+
+        return true;
+    }
+
+    onConnectedSocketLoginServer(_socket) {
+
+        console.log('[L] Socket connected');
+
+        _socket.player_id = 'Unknown';
+        _socket.parseKey = randomInt(0, 16);
+        _socket.data_bf = Buffer.alloc(0);
+
+        _socket.on('error', (_err) => {
+            console.log('[L] socket error: ', _err);
+        });
+
+        _socket.on('end', () => {
+            console.log('[L] socket end');
+        });
+
+        _socket.on('close', () => {
+            console.log('[L] socket closed');
+        });
+
+        _socket.on('data', (_data) => {
+
+            _socket.data_bf = Buffer.concat([_socket.data_bf, _data]);
+
+            this.checkHavePacket(_socket, kServerType.LOGIN_SERVER);
+        });
+
+        // First Packet
+        const p = new Packet(0);
+
+        p.Encode4(_socket.parseKey);
+        p.Encode4(777);
+
+        _socket.write(p.makePacketComplete(-1));
+    }
+
+    onConnectedSocketGameServer(_socket) {
+
+        console.log('[G] Socket connected');
+
+        _socket.player_id = 'Unknown';
+        _socket.parseKey = randomInt(0, 16);
+        _socket.data_bf = Buffer.alloc(0);
+
+        _socket.on('error', (_err) => {
+            console.log('[G] socket error: ', _err);
+        });
+
+        _socket.on('end', () => {
+            console.log('[G] socket end');
+        });
+
+        _socket.on('close', () => {
+            console.log('[G] socket closed');
+        });
+
+        _socket.on('data', (_data) => {
+
+            _socket.data_bf = Buffer.concat([_socket.data_bf, _data]);
+
+            this.checkHavePacket(_socket, kServerType.GAME_SEVER);
+        });
+
+        // First Packet
+        const p = new Packet(0x3F);
+
+        p.Encode1(1);
+        p.Encode1(1);
+        p.Encode1(_socket.parseKey & 0xFF);
+        p.EncodeStr('127.0.0.1');
+
+        _socket.write(p.makePacketComplete(-1));
     }
 }
 

@@ -265,9 +265,25 @@
           dLog.innerHTML = 'Conectado com o host';
           dLog.className = 'cgreen';
 
+          dServerStatus.innerHTML = 'Desligado';
+          dServerStatus.className = 'cred';
+
+          dServerLog.innerHTML = '';
+          dServerLog.className = 'cblack';
+
+          dListLog.innerHTML = '';
+          dListLog.className = 'cblack';
+
+          dMakeLog.innerHTML = '';
+          dMakeLog.className = 'cblack';
+
           dListSnapshot.style.display = 'flex';
           dMakeSnapshot.style.display = 'flex';
           dServer.style.display = 'flex';
+
+          bMake.style.pointerEvents = 'auto';
+          bLigar.style.pointerEvents = 'auto';
+          bDesligar.style.pointerEvents = 'auto';
 
           // request list of snapshot
           socket.send(JSON.stringify({

@@ -21,14 +21,21 @@ class SequencePacket {
             this.sequence.set(this.curr_key, [obj]);
     }
 
-    get_sequence(key) {
+    get_sequence(key, _callback_conflict = null, _arg = null) {
 
         var keys = this._all_keys_match(key);
 
         if (keys.length <= 0)
             return [];
 
-        return Array.from(this.sequence.entries()).filter(el => keys.includes(el[0])).map(el => el[1]);
+        const seqs = Array.from(this.sequence.entries()).filter(el => keys.includes(el[0]));
+
+        if (seqs.length <= 0)
+            return [];
+        else if (seqs.length == 1 || !_callback_conflict || !(_callback_conflict instanceof Function))
+            return seqs.map(el => el[1]).shift();
+
+        return _callback_conflict(seqs, _arg);
     }
 
     has_sequence(key) {
