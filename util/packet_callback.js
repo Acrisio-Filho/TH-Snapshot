@@ -6,7 +6,7 @@ class PacketCallback {
 
     type = -1;
     skip = false;
-    _callback = null;
+    callback = null;
 
     constructor(_type, _skip, _callback) {
         this.type = _type;

@@ -415,8 +415,17 @@ class Packet {
 		return data;
 	}
 
-	reset() {
+	reset(_type = undefined) {
+
 		this.offset = 0;
+
+		if (this.is_raw)
+		    this.offset = 7;
+		else if (_type) {
+
+		    this.type = _type;
+		    this.Encode2(_type);
+		}
 	}
 
 	unMakePacket(_buff, _parseKey) {

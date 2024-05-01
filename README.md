@@ -10,8 +10,23 @@ Faça o snapshot do TH antes de os servidores serem desligados. (1)
 - Ver o info;
 - Ver o achievement.
 
-# Falta fazer
-- Jogar no practice
+# Feito mais não testado ainda
+- Practice feito;
+- Usa active item;
+- Move ball;
+- Active time booster;
+- Active assist green;
+- Troca info da sala do practice;
+- Ativa e desativa assist;
+- Troca de character;
+- Troca de caddie;
+- Troca de clubset;
+- Troca de mascot;
+- Troca de itemslot;
+- Troca de skins;
+- Troca de roupa do character;
+- Troca de cutin do character;
+- Troca de poster.
 
 # Como usar
 Baixe o Node.js e Npm

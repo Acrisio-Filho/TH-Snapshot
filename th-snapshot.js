@@ -333,7 +333,7 @@ class THSnapshot {
                     if (opt == 0) {
 
                         let client_version = _pckt.DecodeStr();
-                        let room_number = _pckt.Decode2();
+                        let room_number = _pckt.Decode2(true);
 
                         _pckt.Discart(89);
 

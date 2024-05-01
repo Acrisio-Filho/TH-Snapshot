@@ -14,6 +14,24 @@ const kServerType = {
     GAME_SEVER: 1
 }
 
+function getCurrentDateAsSYSTEMTIME() {
+
+    const st = Buffer.alloc(16);
+
+    const dt = new Date();
+
+    st.writeUInt16LE(dt.getFullYear(), 0);
+    st.writeUInt16LE(dt.getMonth(), 2);
+    st.writeUInt16LE(dt.getDay(), 4);
+    st.writeUInt16LE(dt.getDate(), 6);
+    st.writeUInt16LE(dt.getHours(), 8);
+    st.writeUInt16LE(dt.getMinutes(), 10);
+    st.writeUInt16LE(dt.getSeconds(), 12);
+    st.writeUInt16LE(dt.getMilliseconds(), 14);
+
+    return st;
+}
+
 class THSnapshotServer {
 
     login_server = null;
@@ -73,6 +91,618 @@ class THSnapshotServer {
                         return true;
                     }
 
+                    // init player info
+                    _socket.player_characters = [];
+                    _socket.player_caddies = [];
+                    _socket.player_mascots = [];
+                    _socket.player_warehouse_items = [];
+
+                    _socket.player_character = function(_id = undefined) {
+
+                        if (_id === undefined)
+                            return this.player_user_equip.readUInt32LE(4);
+
+                        this.player_user_equip.writeUInt32LE(_id, 4);
+
+                        this.player_ei_character  = _socket.findCharacter(_id);
+                    }
+
+                    _socket.player_caddie = function(_id = undefined) {
+
+                        if (_id === undefined)
+                            return this.player_user_equip.readUInt32LE(0);
+
+                        this.player_user_equip.writeUInt32LE(_id, 0);
+
+                        this.player_ei_caddie = _socket.findCaddie(_id);
+                    }
+
+                    _socket.player_clubset = function(_id = undefined) {
+
+                        if (_id === undefined)
+                            return this.player_user_equip.readUInt32LE(8);
+
+                        this.player_user_equip.writeUInt32LE(_id, 8);
+
+                        this.player_ei_clubset = this.findWarehouseItem(_id);
+
+                        if (this.player_ei_clubset) {
+                            
+                            this.player_ei_csi = Buffer.alloc(28);
+
+                            this.player_ei_csi.writeInt32LE(this.player_ei_clubset.readInt32LE(0));
+                            this.player_ei_csi.writeUInt32LE(this.player_ei_clubset.readUInt32LE(4), 4);
+                            this.player_ei_clubset.copy(this.player_ei_csi, 8, 12, 22);
+                            this.player_ei_clubset.copy(this.player_ei_csi, 18, 170, 182);
+                        }
+                    }
+
+                    _socket.player_ball = function(_typeid = undefined) {
+
+                        if (_typeid === undefined)
+                            return this.player_user_equip.readUInt32LE(12);
+
+                        this.player_user_equip.writeUInt32LE(_typeid, 12);
+                    }
+
+                    _socket.player_mascot = function(_id = undefined) {
+
+                        if (_id === undefined)
+                            return this.player_user_equip.readUInt32LE(104);
+
+                        this.player_user_equip.writeUInt32LE(104);
+
+                        this.player_ei_mascot  = _socket.findMascot(_id);
+                    }
+
+                    _socket.player_itemslot = function(_bf = undefined) {
+
+                        if (_bf === undefined)
+                            return this.player_user_equip.slice(16, 56);
+
+                        _bf.copy(this.player_user_equip, 16, 0, 40);
+                    }
+
+                    _socket.player_skins = function(_bf = undefined) {
+
+                        if (_bf === undefined)
+                            return this.player_user_equip.slice(80, 104);
+
+                        _bf.copy(this.player_user_equip, 80, 0, 24);
+                    }
+
+                    _socket.player_poster = function(_bf = undefined) {
+
+                        if (_bf === undefined)
+                            return this.player_user_equip.slice(108, 116);
+
+                        _bf.copy(this.player_user_equip, 108, 0, 8);
+                    }
+
+                    _socket.findCharacter = function(_id) {
+                        return this.player_characters.filter(el => el.readInt32LE(4) == _id).shift();
+                    }
+
+                    _socket.findCaddie = function(_id) {
+                        return this.player_caddies.filter(el => el.readInt32LE(0) == _id).shift();
+                    }
+
+                    _socket.findMascot = function(_id) {
+                        return this.player_mascots.filter(el => el.readInt32LE(0) == _id).shift();
+                    }
+
+                    _socket.findWarehouseItem = function(_id) {
+                        return this.player_warehouse_items.filter(el => el.readInt32LE(0) == _id).shift();
+                    }
+
+                    _socket.findWarehouseItemByTypeid = function(_typeid) {
+                        return this.player_warehouse_items.filter(el => el.readInt32LE(4) == _typeid).shift();
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0xA,
+                true,
+                function(_pckt, _socket) {
+
+                    _pckt.Discart(2);
+
+                    let count = _pckt.Decode1();
+
+                    if (count <= 0)
+                        return false;
+
+                    for (let i = 0; i < count; i++) {
+
+                        let type = _pckt.Decode1();
+
+                        switch (type) {
+                            case 0: // name
+                                _socket.room.name = _pckt.DecodeStr();
+                                break;
+                            case 3: // course
+                                _socket.room.course = _pckt.Decode1();
+                                break;
+                            case 4: // qntd hole
+                                _socket.room.qntd_hole = _pckt.Decode1();
+                                break;
+                            case 5: // modo
+                                _socket.room.modo = _pckt.Decode1();
+                                break;
+                            case 8: // time 30s
+                                _socket.room.time_30s = _pckt.Decode1() * 60000;
+                                break;
+                            case 0xB: // hole repeat
+                                _socket.room.hole_repeat = _pckt.Decode1();
+                                break;
+                            case 0xC: // fixed hole
+                                _socket.room.fixed_hole = _pckt.Decode4();
+                                break;
+                            case 0xE: // natural
+                                _socket.room.natural = _pckt.Decode4();
+                                break;
+                        }
+                    }
+
+                    const p = new Packet(0x4A);
+
+                    p.Encode2(-1);
+                    p.Encode1(_socket.room.tipo);
+                    p.Encode1(_socket.room.course);
+                    p.Encode1(_socket.room.qntd_hole);
+                    p.Encode1(_socket.room.modo);
+
+                    if (_socket.room.modo == 4) {
+                        p.Encode1(_socket.room.hole_repeat);
+                        p.Encode4(_socket.room.fixed_hole);
+                    }
+
+                    p.Encode4(_socket.room.natural);
+                    p.Encode1(_socket.room.max_player);
+                    p.Encode1(30);
+                    p.Encode1(0);
+                    p.Encode4(0);
+                    p.Encode4(_socket.room.time_30s);
+                    p.Encode4(0);
+                    p.Encode1(0);
+                    p.EncodeStr(_socket.room.name);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0xC,
+                true,
+                function(_pckt, _socket) {
+
+                    let opt = _pckt.Decode1();
+
+                    switch (opt) {
+                        case 1: // caddie
+                            _socket.player_caddie(_pckt.Decode4(true));
+                            break;
+                        case 2: // ball
+                            _socket.player_ball(_pckt.Decode4());
+                            break;
+                        case 3: // clubset
+                            _socket.player_clubset(_pckt.Decode4(true));
+                            break;
+                        case 4: // character
+                            _socket.player_character(_pckt.Decode4(true));
+                            break;
+                        case 5: // mascot
+                            _socket.player_mascot(_pckt.Decode4(true));
+                            break;
+                        case 7: // start
+                            _socket.player_character(_pckt.Decode4(true));
+                            _socket.player_caddie(_pckt.Decode4(true));
+                            _socket.player_clubset(_pckt.Decode4(true));
+                            _socket.player_ball(_pckt.Decode4());
+                            this.startGame(_socket);
+                            return false;
+                    }
+
+                    const p = new Packet(0x4B);
+
+                    p.Encode4(0);
+
+                    p.Encode1(opt);
+
+                    switch (opt) {
+                        case 1: // caddie
+                            if (_socket.player_ei_caddie)
+                                p.EncodeBuffer(_socket.player_ei_caddie);
+                            else
+                                p.fillZeroByte(25);
+                            break;
+                        case 2: // ball
+                            p.Encode4(_socket.player_ball());
+                            break;
+                        case 3: // clubset
+                            if (_socket.player_ei_csi)
+                                p.EncodeBuffer(_socket.player_ei_csi);
+                            else
+                                p.fillZeroByte(28);
+                            break;
+                        case 4: // character
+                            if (_socket.player_ei_character)
+                                p.EncodeBuffer(_socket.player_ei_character);
+                            else
+                                p.fillZeroByte(513);
+                            break;
+                        case 5: // mascot
+                            if (_socket.player_ei_mascot)
+                                p.EncodeBuffer(_socket.player_ei_mascot);
+                            else
+                                p.fillZeroByte(62);
+                            break;
+                    }
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x11,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0x53);
+
+                    p.Encode4(_socket.player_oid);
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x17,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0x5A);
+
+                    p.Encode4(_pckt.Decode4());
+                    p.Encode4(randomInt(0, 0xFFFFFFFF));
+                    p.Encode4(_socket.player_oid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x19,
+                true,
+                function(_pckt, _socket) {
+
+                    _socket.player_shot++;
+
+                    const p = new Packet(0x60);
+
+                    p.EncodeBuffer(_pckt.DecodeBuffer(12));
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x1A,
+                true,
+                function(_pckt, _socket) {
+
+                    _pckt.Discart(9);
+
+                    _socket.par_hole = _pckt.Decode1();
+                    _socket.total_shot += _socket.shot;
+                    _socket.total_pang += _socket.player_pang;
+                    _socket.total_bonus_pang += _socket.player_bonus_pang;
+                    _socket.shot = 0;
+                    _socket.player_pang = 0m;
+                    _socket.player_bonus_pang = 0m
+
+                    const p = new Packet(0x9E);
+
+                    if (_socket.last_weather == 1)
+                        _socket.last_weather = 2;
+                    else
+                        _socket.last_weather = randomInt(0, 3);
+
+                    p.Encode(1);
+                    p.Encode2(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x5B);
+
+                    p.Encode1(randomInt(0, 9));
+                    p.Encode1(0);
+                    p.Encode1(randomInt(0, 256) & 0xFF);
+                    p.Encode1(0);
+                    p.Encode1(1);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x8D);
+
+                    p.Encode4(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x1B,
+                true,
+                function(_pckt, _socket) {
+
+                    const ssd = _pckt.DecodeBuffer(38);
+
+                    for (let i = 0; i < 38; i++)
+                        ssd[i] ^= _socket.room.key[i % 16];
+
+                    _socket.player_pang = BigInt(ssd.readUInt32LE(19)) - _socket.total_pang;
+                    _socket.player_bonus_pang = BigInt(ssd.readUInt32LE(23)) - _socket.total_bonus_pang;
+                    _socket.player_shot++;
+
+                    const p = new Packet(0x6E);
+
+                    p.Encode4(_socket.player_oid);
+                    p.Encode1(_socket.holes[_socket.hole_seq]);
+                    p.Encode4(ssd.readFloatLE(4));
+                    p.Encode4(ssd.readFloatLE(12));
+                    p.Encode4(ssd.readUInt32LE(31));
+                    p.Encode4(ssd.readUInt16LE(35));
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x1C,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0xCC);
+
+                    p.Encode4(_socket.player_oid);
+                    p.Encode1(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x20,
+                true,
+                function(_pckt, _socket) {
+
+                    let opt = _pckt.Decode1();
+
+                    switch (opt) {
+                        case 0: // character all equips
+                            {
+                                const char_all_equips = _pckt.DecodeBuffer(513);
+
+                                const character = _socket.findCharacter(char_all_equips.readInt32LE(4));
+                                
+                                if (character)
+                                    char_all_equips.copy(character);
+
+                                break;
+                            }
+                        case 1: // caddie
+                            _socket.player_caddie(_pckt.Decode4(true));
+                            break;
+                        case 2: // itemslot
+                            _socket.player_itemslot(_pckt.DecodeBuffer(40));
+                            break;
+                        case 3: // ball and clubset
+                            _socket.player_ball(_pckt.Decode4());
+                            _socket.player_clubset(_pcket.Decode4(true));
+                            break;
+                        case 4: // skins
+                            _socket.player_skins(_pckt.DecodeBuffer(24));
+                            break;
+                        case 5: // character id
+                            _socket.player_character(_pckt.Decode4(true));
+                            break;
+                        case 8: // mascot
+                            _socket.player_mascot(_pckt.Decode4(true));
+                            break;
+                        case 9: // cutin
+                            {
+                                const character = _socket.findCharacter(_pckt.Decode4(true));
+
+                                if (character) {
+
+                                    const cutin = _pckt.DecodeBuffer(16);
+
+                                    cutin.copy(character, 440);
+                                }
+
+                                break;
+                            }
+                        case 10: // poster
+                            _socket.player_poster(_pckt.DecodeBuffer(8));
+                            break;
+                    }
+
+                    const p = new Packet(0x6B);
+
+                    p.Encode1(4);
+                    p.Encode1(opt);
+
+                    switch (opt) {
+                        case 0: // character all equips
+                            if (_socket.player_ei_character)
+                                p.EncodeBuffer(_socket.player_ei_character);
+                            else
+                                p.fillZeroByte(513);
+                            break;
+                        case 1: // caddie
+                            if (_socket.player_ei_caddie)
+                                p.EncodeBuffer(_socket.player_ei_caddie);
+                            else
+                                p.fillZeroByte(25);
+                            break;
+                        case 2: // itemslot
+                            p.EncodeBuffer(_socket.player_itemslot());
+                            break;
+                        case 3: // ball and clubset
+                            p.Encode4(_socket.player_ball());
+                            p.Encode4(_socket.player_clubset());
+                            break;
+                        case 4: // skins
+                            p.EncodeBuffer(_socket.player_skins());
+                            break;
+                        case 5: // character
+                            p.Encode4(_socket.player_character());
+                            break;
+                        case 8: // mascot
+                            if (_socket.player_ei_mascot)
+                                p.EncodeBuffer(_socket.player_ei_mascot);
+                            else
+                                p.fillZeroByte(62);
+                            break;
+                        case 9: // cutin
+                            if (_socket.player_ei_character) {
+
+                                p.Encode4(_socket.player_ei_character.readInt32LE(4));
+                                p.EncodeBuffer(_socket.player_ei_character.slice(440, 460));
+
+                            }else
+                                p.fillZeroByte(20);
+                            break;
+                        case 10: // poster
+                            p.EncodeBuffer(_socket.poster());
+                            break;
+                    }
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x31,
+                true,
+                function(_pckt, _socket) {
+                    
+                    if ((_socket.hole_seq + 1) < _socket.room.qntd_hole) {
+
+                        const p = new Packet(0x6D);
+
+                        p.Encode4(_socket.player_oid);
+                        p.Encode1(_socket.holes[_socket.hole_seq]);
+                        p.Encode1(_socket.total_shot);
+                        p.Encode4(_socket.player_shot - _socket.par_hole);
+                        p.Encode8(_socket.player_pang);
+                        p.Encode8(_socket.player_bonus_pang);
+                        p.Encode1(1);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    }else {
+
+                        const p = new Packet(0x199);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0x6D);
+
+                        p.Encode4(_socket.player_oid);
+                        p.Encode1(_socket.holes[_socket.hole_seq]);
+                        p.Encode1(_socket.total_shot);
+                        p.Encode4(_socket.player_shot - _socket.par_hole);
+                        p.Encode8(_socket.player_pang);
+                        p.Encode8(_socket.player_bonus_pang);
+                        p.Encode1(1);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0x6C);
+
+                        p.Encode4(_socket.player_oid);
+                        p.Encode1(2);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0xCE);
+
+                        p.Encode1(0);
+                        p.Encode2(0);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0x79);
+
+                        p.Encode4(0);
+                        p.Encode4(0);
+                        p.Encode1(0);
+                        p.Encode1(2);
+
+                        for (let i = 0; i < 6; i++) {
+                            p.Encode4(-1);
+                            p.Encode4(0);
+                        }
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x65,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0xC7);
+
+                    p.EncodeFloat(_pckt.DecodeFloat);
+                    p.Encode4(_socket.player_oid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x12F,
+                true,
+                function(_pckt, _socket) {
+
+                    const seld = _pckt.DecodeBuffer(87);
+
+                    const p = new Packet(0x1F7);
+
+                    p.Encode4(_socket.player_oid);
+                    p.Encode1(_socket.holes[_socket.hole_seq]);
+                    p.EncodeBuffer(seld);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
                     return false;
                 }
                 .bind(this)
@@ -82,9 +712,70 @@ class THSnapshotServer {
                 true,
                 function(_pckt, _socket) {
 
-                    const p = new Packet(0x26A);
+                    const assist = _socket.findWarehouseItemByTypeid(0x1BE00016);
+
+                    if (!assist) {
+
+                        const p = new Packet(0x26A);
+
+                        p.Encode4(1);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        return false;
+                    }
+
+                    let qntd = assist.readUInt16LE(12);
+                    let qntd_dep = qntd;
+
+                    if (qntd == 1) {
+
+                        qntd_dep = qntd + 1;
+
+                        assist.writeUInt16LE(qntd_dep, 12);
+
+                    }else {
+
+                        qntd_dep = qntd - 1;
+
+                        assist.writeUInt16LE(qntd_dep, 12);
+                    }
+
+                    const p = new Packet(0x216);
+
+                    p.Encode4((new Date()).getTime() & 0xFFFFFFFF);
+                    p.Encode4(1);
+                    p.Encode1(2);
+                    p.Encode4(assist.readUInt32LE(4));
+                    p.Encode4(assist.readInt32LE(0));
+                    p.Encode4(0);
+                    p.Encode4(qntd);
+                    p.Encode4(qntd_dep);
+                    p.Encode4(qntd_dep - qntd);
+                    p.fillZeroByte(25);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x26A);
 
                     p.Encode4(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x185,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0x26B);
+
+                    p.Encode4(0);
+                    p.Encode4(_pckt.Decode4());
+                    p.Encode4(_socket.player_uid);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -123,6 +814,154 @@ class THSnapshotServer {
         ]);
 
         // game client packet callbacks
+        this.game_client_packet_callbacks.push([
+            new PacketCallback(
+                0x44,
+                false,
+                function(_pckt, _socket) {
+
+                    let opt = _pckt.Decode1();
+
+                    if (opt == 0) {
+
+                        let client_version = _pckt.DecodeStr();
+                        let room_number = _pckt.Decode2(true);
+
+                        _pckt.Discart(89);
+
+                        this.player_oid = _pckt.Decode4();
+
+                        _pckt.Discart(172);
+
+                        this.player_uid = _pckt.Decode4();
+
+                        console.log(`[S][G] Login Game Server Ok, Client Version: ${
+                            client_version
+                        }, Room Number: ${
+                            room_number
+                        }, OID: ${this.player_oid}, UID: ${this.player_uid}`);
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x49,
+                false,
+                function(_pckt, _socket) {
+
+                    // maked room
+                    _socket.room = {
+                        number: 0,
+                        name: 'practice',
+                        pass: '123456',
+                        tipo: 4,
+                        course: 0,
+                        modo: 0,
+                        time_30s: 30 * 60000,
+                        qntd_hole: 18,
+                        max_player: 1,
+                        hole_repeat: 1,
+                        fixed_hole: 0,
+                        natural: 0,
+                        key: Buffer.alloc(16)
+                    };
+
+                    _socket.room.name = _pckt.DecodeBuffer(64).toString('utf8');
+                    _pckt.Discart(3);
+                    _socket.room.max_player = _pckt.Decode1();
+                    _pckt.Discart(1);
+                    _socket.room.key = _pckt.DecodeBuffer(16);
+                    _socket.room.Discart(2);
+                    _socket.room.qntd_hole = _pckt.Decode1();
+                    _socket.room.tipo = _pckt.Decode1();
+                    _socket.room.number = _pckt.Decode2(true);
+                    _socket.room.modo = _pckt.Decode1();
+                    _socket.room.course = _pckt.Decode1();
+                    _pckt.Discart(4);
+                    _socket.room.time_30s = _pckt.Decode4();
+                    _pckt.Discart(100); // !@
+                    _socket.room.natural = _pckt.Decode4();
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x70,
+                false,
+                function(_pckt, _socket) {
+
+                    _pckt.Discart(2);
+
+                    let count = _pckt.Decode2();
+
+                    for (let i = 0; i < count; i++)
+                        _socket.player_characters.push(_pckt.DecodeBuffer(513));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x71,
+                false,
+                function(_pckt, _socket) {
+
+                    _pckt.Discart(2);
+
+                    let count = _pckt.Decode2();
+
+                    for (let i = 0; i < count; i++)
+                        _socket.player_caddies.push(_pckt.DecodeBuffer(25));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x72,
+                false,
+                function(_pckt, _socket) {
+
+                    _socket.player_user_equip = _pckt.DecodeBuffer(116);
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x73,
+                false,
+                function(_pckt, _socket) {
+
+                    _pckt.Discart(2);
+
+                    let count = _pckt.Decode2();
+
+                    for (let i = 0; i < count; i++)
+                        _socket.player_warehouse_items.push(_pckt.DecodeBuffer(196));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0xE1,
+                false,
+                function(_pckt, _socket) {
+
+                    let count = _pckt.Decode1();
+
+                    for (let i = 0; i < count; i++)
+                        _socket.player_mascots.push(_pckt.DecodeBuffer(62));
+
+                    return false;
+                }
+                .bind(this)
+            )
+        ]);
 
         // login packet conflict callbacks
 
@@ -162,6 +1001,81 @@ class THSnapshotServer {
                 .bind(this)
             )
         ]);
+    }
+
+    startGame(_socket) {
+
+        // init player game info
+        _socket.last_weather = 0;
+        _socket.hole_seq = 0;
+        _socket.holes = Array.from({length: 18}, (_, i) => i + 1);
+        _socket.player_pang = 0m;
+        _socket.player_bonus_pang = 0m;
+        _socket.par_hole = 4;
+        _socket.player_shot = 0;
+        _socket.total_shot = 0;
+        _socket.total_pang = 0m;
+        _socket.total_bonus_pang = 0m;
+
+        const p = new Packet(0x76);
+
+        p.Encode1(_socket.room.tipo);
+        p.Encode4(1);
+        p.EncodeBuffer(getCurrentDateAsSYSTEMTIME());
+
+        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+        // random course
+        if (_socket.room.modo != 4 && (_socket.room.course == 0x7F || (_socket.room.course & 0x80) != 0))
+            _socket.room.course = 0x80 | (
+                Array.from({length: 22}, (_, i) => i)
+                .filter(el => el != 12 && el != 17)
+                .sort(() => 0.5 - Math.random())
+                .shift()
+            );
+
+        p.reset(0x52);
+
+        p.Encode1(_socket.room.course);
+        p.Encode1(_socket.room.tipo);
+        p.Encode1(_socket.room.modo);
+        p.Encode1(_socket.room.qntd_hole);
+        p.Encode4(0);
+        p.Encode4(0);
+        p.Encode4(_socket.room.time_30s);
+
+        switch (_socket.room.modo) {
+            case 1:
+                _socket.holes = Array().concat(_socket.holes.slice(9, 18), _socket.holes.slice(0, 9));
+                break;
+            case 2:
+                let hole = randomInt(0, 18);
+                _socket.holes = Array().concat(
+                    _socket.holes.slice(hole, _socket.holes.length),
+                    _socket.holes.slice(0, hole - _socket.holes.length)
+                );
+                break;
+            case 3:
+                _socket.holes.sort(() => 0.5 - Math.random());
+                break;
+        }
+        
+        const pin = randomInt(0, 3);
+
+        for (let i = 0; i < 18; i++) {
+
+            p.Encode4(randomInt(0, 0x7FFFFFFF));
+            p.Encode1((_socket.room.fixed_hole ? pin : randomInt(0, 3)));
+            p.Encode1(_socket.room.course);
+            p.Encode1(_socket.holes[i]);
+        }
+
+        p.Encode4(randomInt(0, 0xFFFF));
+
+        for (let i = 0; i < 18; i++)
+            p.Encode1(0);
+
+        _socket.write(p.makePacketComplete(_socket.parseKey));
     }
 
     is_listening() {
@@ -347,7 +1261,6 @@ class THSnapshotServer {
 
         // reset _pckt
         _pckt.reset();
-        _pckt.Decode2(); // type
 
         if (this.login_packets.has_sequence(`${_pckt.type}`)) {
 
@@ -395,7 +1308,6 @@ class THSnapshotServer {
 
         // reset _pckt
         _pckt.reset();
-        _pckt.Decode2(); // type
 
         if (this.game_packets.has_sequence(`${_pckt.type}`)) {
 
