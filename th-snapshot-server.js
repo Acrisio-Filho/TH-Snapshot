@@ -137,7 +137,7 @@ class THSnapshotServer {
 
                     let modo = _pckt.Decode1();
 
-                    console.log(`Request make room, modo: ${modo}`);
+                    console.log(`[S][G] Request make room, modo: ${modo}`);
 
                     _objKey.key = `${_pckt.type}-${modo}`;
 
@@ -153,7 +153,7 @@ class THSnapshotServer {
                     let uid = _pckt.Decode4();
                     let opt = _pckt.Decode1();
 
-                    console.log(`Request info do player: ${uid}, opt: ${opt}`);
+                    console.log(`[S][G] Request info do player: ${uid}, opt: ${opt}`);
 
                     _objKey.key = `${_pckt.type}-${opt}`;
 
@@ -223,7 +223,7 @@ class THSnapshotServer {
             this.login_server = net.createServer(this.onConnectedSocketLoginServer.bind(this));
 
             this.login_server.on('error', (err) => {
-                console.log('login server error: ', err);
+                console.log('[S][L] login server error: ', err);
 
                 // reply
                 if (initialized == 0)
@@ -231,12 +231,12 @@ class THSnapshotServer {
             });
 
             this.login_server.on('close', () => {
-                console.log('login server closed');
+                console.log('[S][L] login server closed');
                 this.login_server = null;
             });
 
             this.login_server.listen(10201, () => {
-                console.log('login_server listen in port: 10201');
+                console.log('[S][L] login_server listen in port: 10201');
                 initialized = 1;
             });
 
@@ -248,7 +248,7 @@ class THSnapshotServer {
             this.game_server = net.createServer(this.onConnectedSocketGameServer.bind(this));
 
             this.game_server.on('error', (err) => {
-                console.log('game_server error: ', err);
+                console.log('[S][G] game_server error: ', err);
 
                 // reply
                 if (initialized == 1)
@@ -256,12 +256,12 @@ class THSnapshotServer {
             });
 
             this.game_server.on('close', () => {
-                console.log('game_server closed');
+                console.log('[S][G] game_server closed');
                 this.game_server = null;
             });
 
             this.game_server.listen(20201, () => {
-                console.log('game_server listen in port: 10201');
+                console.log('[S][G] game_server listen in port: 10201');
                 initialized = 2;
 
                 // reply
@@ -295,7 +295,7 @@ class THSnapshotServer {
                 _socket.parseKey
             );
 
-            _socket.data_bf = _socket.data_bf.slice(pckt.size);
+            _socket.data_bf = _socket.data_bf.slice(length + kPacketHeaderLength);
 
             if (_server_type == kServerType.LOGIN_SERVER)
                 bContinue = this.translateLoginPacket(_socket, pckt);
@@ -336,7 +336,7 @@ class THSnapshotServer {
 
     translateLoginPacket(_socket, _pckt) {
 
-        console.log(`[L] Packet.type: ${_pckt.type}`);
+        console.log(`[S][L] Packet.type: ${_pckt.type}`);
 
         _pckt.printToConsole();
 
@@ -384,7 +384,7 @@ class THSnapshotServer {
 
     translateGamePacket(_socket, _pckt) {
 
-        console.log(`[G] Packet.type: ${_pckt.type}`);
+        console.log(`[S][G] Packet.type: ${_pckt.type}`);
 
         _pckt.printToConsole();
 
@@ -432,22 +432,22 @@ class THSnapshotServer {
 
     onConnectedSocketLoginServer(_socket) {
 
-        console.log('[L] Socket connected');
+        console.log('[S][L] Socket connected');
 
         _socket.player_id = 'Unknown';
         _socket.parseKey = randomInt(0, 16);
         _socket.data_bf = Buffer.alloc(0);
 
         _socket.on('error', (_err) => {
-            console.log('[L] socket error: ', _err);
+            console.log('[S][L] socket error: ', _err);
         });
 
         _socket.on('end', () => {
-            console.log('[L] socket end');
+            console.log('[S][L] socket end');
         });
 
         _socket.on('close', () => {
-            console.log('[L] socket closed');
+            console.log('[S][L] socket closed');
         });
 
         _socket.on('data', (_data) => {
@@ -468,22 +468,22 @@ class THSnapshotServer {
 
     onConnectedSocketGameServer(_socket) {
 
-        console.log('[G] Socket connected');
+        console.log('[S][G] Socket connected');
 
         _socket.player_id = 'Unknown';
         _socket.parseKey = randomInt(0, 16);
         _socket.data_bf = Buffer.alloc(0);
 
         _socket.on('error', (_err) => {
-            console.log('[G] socket error: ', _err);
+            console.log('[S][G] socket error: ', _err);
         });
 
         _socket.on('end', () => {
-            console.log('[G] socket end');
+            console.log('[S][G] socket end');
         });
 
         _socket.on('close', () => {
-            console.log('[G] socket closed');
+            console.log('[S][G] socket closed');
         });
 
         _socket.on('data', (_data) => {
