@@ -546,6 +546,29 @@ class THSnapshotServer {
                 .bind(this)
             ),
             new PacketCallback(
+                0xE,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0x230);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x231);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x77);
+
+                    p.Encode4(100);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
                 0x11,
                 true,
                 function(_pckt, _socket) {
@@ -553,6 +576,8 @@ class THSnapshotServer {
                     const p = new Packet(0x53);
 
                     p.Encode4(_socket.player_oid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
 
                     return false;
                 }
@@ -566,7 +591,7 @@ class THSnapshotServer {
                     const p = new Packet(0x5A);
 
                     p.Encode4(_pckt.Decode4());
-                    p.Encode4(randomInt(0, 0xFFFFFFFF));
+                    p.Encode4(randomInt(0, 0x7FFFFFFF));
                     p.Encode4(_socket.player_oid);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -614,16 +639,21 @@ class THSnapshotServer {
                     else
                         _socket.last_weather = randomInt(0, 3);
 
-                    p.Encode(1);
+                    p.Encode1(_socket.last_weather);
                     p.Encode2(0);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
                     p.reset(0x5B);
 
-                    p.Encode1(randomInt(0, 9));
+                    if (_socket.room.modo != 4) {
+                        _socket.player_wind = randomInt(0, 9);
+                        _socket.player_degree = randomInt(0, 256);
+                    }
+
+                    p.Encode1(_socket.player_wind);
                     p.Encode1(0);
-                    p.Encode1(randomInt(0, 256) & 0xFF);
+                    p.Encode1(_socket.player_degree);
                     p.Encode1(0);
                     p.Encode1(1);
 
@@ -711,7 +741,7 @@ class THSnapshotServer {
                             break;
                         case 3: // ball and clubset
                             _socket.player_ball(_pckt.Decode4());
-                            _socket.player_clubset(_pcket.Decode4(true));
+                            _socket.player_clubset(_pckt.Decode4(true));
                             break;
                         case 4: // skins
                             _socket.player_skins(_pckt.DecodeBuffer(24));
@@ -899,6 +929,44 @@ class THSnapshotServer {
                 .bind(this)
             ),
             new PacketCallback(
+                0x4B,
+                true,
+                function(_pckt, _socket) {
+
+                    let opt = _pckt.Decode1();
+                    let stat = _pckt.Decode1();
+                    let item_id = _pckt.Decode4(true);
+
+                    if (opt == 1 || opt == 3) {
+
+                        const clubset = _socket.findWarehouseItem(item_id);
+
+                        if (clubset) {
+
+                            const pcl = clubset.slice(12, 22);
+
+                            if (opt == 1)
+                                pcl.write(pcl.readUInt16LE(stat * 2) + 1, stat * 2);
+                            else if (opt == 3)
+                                pcl.write(pcl.readUInt16LE(stat * 2) - 1, stat * 2);
+                        }
+
+                        const p = new Packet(0xA5);
+
+                        p.Encode1(opt / 2 + 1);
+                        p.Encode1(opt % 2);
+                        p.Encode1(stat);
+                        p.Encode4(item_id);
+                        p.Encode8(0n);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
                 0x63,
                 true,
                 function(_pckt, _socket) {
@@ -950,7 +1018,7 @@ class THSnapshotServer {
 
                     const p = new Packet(0xC7);
 
-                    p.EncodeFloat(_pckt.DecodeFloat);
+                    p.EncodeFloat(_pckt.DecodeFloat());
                     p.Encode4(_socket.player_oid);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -1040,6 +1108,40 @@ class THSnapshotServer {
                 .bind(this)
             ),
             new PacketCallback(
+                0x130,
+                true,
+                function(_pckt, _socket) {
+
+                    const p = new Packet(0x8C);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0xCE);
+
+                    p.Encode1(0);
+                    p.Encode2(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x79);
+
+                    p.Encode4(0);
+                    p.Encode4(0);
+                    p.Encode1(0);
+                    p.Encode1(2);
+
+                    for (let i = 0; i < 6; i++) {
+                        p.Encode4(-1);
+                        p.Encode4(0);
+                    }
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
                 0x138,
                 true,
                 function(_pckt, _socket) {
@@ -1050,6 +1152,18 @@ class THSnapshotServer {
                     p.Encode4(_pckt.Decode4());
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x141,
+                true,
+                function(_pckt, _socket) {
+
+                    _socket.player_wind = randomInt(0, 9);
+                    _socket.player_degree = randomInt(0, 256);
 
                     return false;
                 }
@@ -1210,6 +1324,80 @@ class THSnapshotServer {
                     p.Encode4(0);
                     p.Encode4(_pckt.Decode4());
                     p.Encode4(_socket.player_uid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x188,
+                true,
+                function(_pckt, _socket) {
+
+                    let stat = _pckt.Decode4();
+
+                    let cibf = _pckt.DecodeBuffer(513);
+
+                    const character = _socket.findCharacter(cibf.readInt32LE(4));
+
+                    if (character)
+                        cibf.copy(character);
+
+                    const p = new Packet(0x216);
+
+                    p.Encode4((new Date()).getTime() & 0xFFFFFFFF);
+                    p.Encode4(1);
+                    p.Encode1(0xC9);
+                    p.EncodeBuffer(cibf.slice(0, 8));
+                    p.fillZeroByte(16);
+                    p.EncodeBuffer(cibf.slice(456, 10));
+                    p.fillZeroByte(15);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x26F);
+
+                    p.Encode4(0);
+                    p.Encode4(stat);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x189,
+                true,
+                function(_pckt, _socket) {
+
+                    let stat = _pckt.Decode4();
+
+                    let cibf = _pckt.DecodeBuffer(513);
+
+                    const character = _socket.findCharacter(cibf.readInt32LE(4));
+
+                    if (character)
+                        cibf.copy(character);
+
+                    const p = new Packet(0x216);
+
+                    p.Encode4((new Date()).getTime() & 0xFFFFFFFF);
+                    p.Encode4(1);
+                    p.Encode1(0xC9);
+                    p.EncodeBuffer(cibf.slice(0, 8));
+                    p.fillZeroByte(16);
+                    p.EncodeBuffer(cibf.slice(456, 10));
+                    p.fillZeroByte(15);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x270);
+
+                    p.Encode4(0);
+                    p.Encode4(stat);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -1507,6 +1695,8 @@ class THSnapshotServer {
     startGame(_socket) {
 
         // init player game info
+        _socket.player_wind = 0;
+        _socket.player_degree = 0;
         _socket.last_weather = 0;
         _socket.hole_seq = 0;
         _socket.holes = Array.from({length: 18}, (_, i) => i + 1);

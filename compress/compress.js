@@ -110,12 +110,7 @@ class Compress {
 
                                     if (truta > 0xFF) {
 
-                                        /*lMul = truta - 0x100;
-                                        lMul *= 0x80808081;
-                                        lMul >>= 32;
-                                        lMul >>= 7;
-                                        lMul++;*/
-                                        lMul = Math.round(truta / 0xFF);
+                                        lMul = Math.floor(truta / 0xFF);
                                         padrao = lMul;
 
                                         do {
@@ -297,12 +292,7 @@ class Compress {
 
                     if (porra > 0xFF) {
 
-                        /*lMul = porra - 0x100;
-                        lMul *= 0x80808081;
-                        lMul >>= 32;
-                        lMul >>= 7;
-                        lMul++;*/
-                        lMul = Math.round(porra / 0xFF);
+                        lMul = Math.floor(porra / 0xFF);
                         diffTamanho = lMul;
 
                         do {
@@ -359,12 +349,7 @@ class Compress {
 
                         if (porra > 0xFF) {
 
-                            // lMul = porra - 0x100;
-                            // lMul *= 0x80808081;
-                            // lMul >>= 32;
-                            // lMul >>= 7;
-                            // lMul++;
-                            lMul = Math.round(porra / 0xFF);
+                            lMul = Math.floor(porra / 0xFF);
 
                             do {                            
                                 CompressFixo[c_index++] = 0;

@@ -228,7 +228,7 @@ class Packet {
 
 			ret_buff = Buffer.concat([
 			    Buffer.alloc(PACKET_HEADER_SIZE + 1),
-			    Compress.compress(ret_buff.slice(PACKET_HEADER_SIZE, size_raw), true)
+			    Compress.compress(ret_buff.slice(PACKET_HEADER_SIZE, size_raw))
 			]);
 
 			size_raw = ret_buff.length;

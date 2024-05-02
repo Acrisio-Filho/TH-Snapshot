@@ -8,37 +8,43 @@ Faça o snapshot do TH antes de os servidores serem desligados[^1].
 - Loga normal; 
 - Entrar no armário;
 - Ver o info;
-- Ver o achievement.
+- Ver o achievement;
+- Practice;
+- Sai do Practice;
+- Troca info da sala do practice;
+- Troca o vento no hole repeat;
+- Move ball;
+- Ativa e desativa assist;
+- Active time booster;
+- Active assist green;
+- Entra na lobby;
+- Sai da lobby;
+- Troca de itemslot;
+- Troca de bola;
 
 # Feito mais não testado ainda
-- Practice feito;
 - Usa active item;
-- Move ball;
-- Active time booster;
 - Active replay;
-- Active assist green;
 - Active ring;
 - Active ring ground;
 - Active wing;
 - Active earcuff;
 - Active glove;
 - Active paws;
-- Entra na lobby;
-- Manda mensagem no chat;
 - Cria sala Lounge;
 - Lounge effect item (big head, e etc);
+- Manda mensagem no chat;
 - Motion in lounge;
-- Troca info da sala do practice;
-- Ativa e desativa assist;
 - Troca de character;
 - Troca de caddie;
 - Troca de clubset;
 - Troca de mascot;
-- Troca de itemslot;
 - Troca de skins;
 - Troca de roupa do character;
 - Troca de cutin do character;
-- Troca de poster.
+- Troca de poster;
+- Up/Downgrade character stats;
+- Up/Downgrade clubset stats.
 
 # Como usar
 Baixe o Node.js e Npm
