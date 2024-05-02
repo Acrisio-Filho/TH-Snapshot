@@ -409,8 +409,8 @@ class THSnapshotServer {
                     _socket.total_pang += _socket.player_pang;
                     _socket.total_bonus_pang += _socket.player_bonus_pang;
                     _socket.shot = 0;
-                    _socket.player_pang = 0m;
-                    _socket.player_bonus_pang = 0m
+                    _socket.player_pang = BinInt(0);
+                    _socket.player_bonus_pang = BigInt(0);
 
                     const p = new Packet(0x9E);
 
@@ -873,7 +873,7 @@ class THSnapshotServer {
                     _socket.room.max_player = _pckt.Decode1();
                     _pckt.Discart(1);
                     _socket.room.key = _pckt.DecodeBuffer(16);
-                    _socket.room.Discart(2);
+                    _pckt.Discart(2);
                     _socket.room.qntd_hole = _pckt.Decode1();
                     _socket.room.tipo = _pckt.Decode1();
                     _socket.room.number = _pckt.Decode2(true);
@@ -1009,13 +1009,13 @@ class THSnapshotServer {
         _socket.last_weather = 0;
         _socket.hole_seq = 0;
         _socket.holes = Array.from({length: 18}, (_, i) => i + 1);
-        _socket.player_pang = 0m;
-        _socket.player_bonus_pang = 0m;
+        _socket.player_pang = BigInt(0);
+        _socket.player_bonus_pang = BigInt(0);
         _socket.par_hole = 4;
         _socket.player_shot = 0;
         _socket.total_shot = 0;
-        _socket.total_pang = 0m;
-        _socket.total_bonus_pang = 0m;
+        _socket.total_pang = BigInt(0);
+        _socket.total_bonus_pang = BigInt(0);
 
         const p = new Packet(0x76);
 

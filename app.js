@@ -12,6 +12,8 @@ const THSnapshotServer = require('./th-snapshot-server');
 const HOST_PORT = 9988;
 const snapshot_server = new THSnapshotServer();
 
+const kSnapshotsDirPath = 'snapshots/';
+
 // http server
 const http_server = http.createServer(function (req, res) {
 
@@ -123,7 +125,7 @@ function createServerWS() {
                             if (!_success) {
 
                                 // Log
-                                console.log(`Fail in make snapshot, Error: ${_msg_err}`);
+                                console.log(`[WS] Fail in make snapshot, Error: ${_msg_err}`);
 
                                 ws.send(JSON.stringify({
                                     type: 1,
@@ -144,7 +146,7 @@ function createServerWS() {
                         })) {
 
                             // Log
-                            console.log(`Fail in start make snapshot`);
+                            console.log(`[WS] Fail in start make snapshot`);
 
                             ws.send(JSON.stringify({
                                 type: 1,
@@ -159,7 +161,7 @@ function createServerWS() {
                     }
                 case 2: // Update List Snapshot
                     {
-                        fs.readdir('./', (err, files) => {
+                        fs.readdir(kSnapshotsDirPath, (err, files) => {
 
                             if (err) {
 
@@ -172,7 +174,7 @@ function createServerWS() {
                                 return;
                             }
 
-                            files = files.filter(el => !el.search(`(login_packets|game_packets)-.+.json`));
+                            files = files.filter(el => !el.search(`(login_packets|game_packets)-.+.json$`));
 
                             files = files.map((el, k, arr) => {
 
@@ -215,7 +217,7 @@ function createServerWS() {
                                 if (!_success) {
 
                                     // Log
-                                    console.log(`Fail to start snapshot server, Error: ${_msg_err}`);
+                                    console.log(`[WS] Fail to start snapshot server, Error: ${_msg_err}`);
 
                                     ws.send(JSON.stringify({
                                         type: 3,
@@ -248,7 +250,7 @@ function createServerWS() {
                                 if (!_success) {
 
                                     // Log
-                                    console.log(`Fail to stop snapshot server, Error: ${_msg_err}`);
+                                    console.log(`[WS] Fail to stop snapshot server, Error: ${_msg_err}`);
 
                                     ws.send(JSON.stringify({
                                         type: 3,

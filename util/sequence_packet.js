@@ -4,7 +4,10 @@
 
 const fs = require('fs');
 
+const kSnapshotsDirPath = 'snapshots/';
+
 class SequencePacket {
+
 
     curr_key = 'None';
     sequence = new Map();
@@ -53,13 +56,18 @@ class SequencePacket {
         if (this.sequence.size > 0)
             this.sequence.clear();
 
+        _name = kSnapshotsDirPath + _name + '.json';
+
         try {
 
-            this.sequence = new Map(JSON.parse(fs.readFileSync(`${_name}.json`)));
+            this.sequence = new Map(JSON.parse(fs.readFileSync(_name)));
+
+            // Log
+            console.log(`Carregou o packets sequence file: "${_name}" com sucesso!`);
 
         }catch (ex) {
 
-            console.log(`Failed in load file: ${_name}.json, exception: ${ex}`);
+            console.log(`Failed in load file: "${_name}", exception: ${ex}`);
 
             return false;
         }
@@ -69,13 +77,18 @@ class SequencePacket {
 
     save(_name) {
 
+        _name = kSnapshotsDirPath + _name + '.json';
+
         try {
 
-            fs.writeFileSync(`${_name}.json`, JSON.stringify(Array.from(this.sequence)));
+            fs.writeFileSync(_name, JSON.stringify(Array.from(this.sequence)));
+
+            // Log
+            console.log(`Salvo o packets sequence file: "${_name}" com sucesso!`);
 
         }catch (ex) {
 
-            console.log(`Failed in save file: ${_name}.json, exception: ${ex}`);
+            console.log(`Failed in save file: "${_name}", exception: ${ex}`);
 
             return false;
         }

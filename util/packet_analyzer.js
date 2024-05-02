@@ -36,7 +36,7 @@ class PacketAnalyzer {
         if (!pckt_callback.callback || !(pckt_callback.callback instanceof Function))
             return ret;
 
-        ret.exit = pckt_callback.callback(_pckt, _arg);
+        ret.exit = pckt_callback.callback(_pckt, _arg, ret);
 
         return ret;
     }
