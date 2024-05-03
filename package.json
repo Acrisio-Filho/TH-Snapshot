@@ -13,6 +13,7 @@
   "author": "Acrisio Filho",
   "license": "MIT",
   "dependencies": {
+    "node-stream-zip": "^1.15.0",
     "ws": "^8.17.0"
   }
 }

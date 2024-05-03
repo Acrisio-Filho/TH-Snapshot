@@ -8,29 +8,34 @@ const Packet = require('./packet/packet');
 const SequencePacket = require('./util/sequence_packet');
 const PacketCallback = require('./util/packet_callback');
 const PacketAnalyzer = require('./util/packet_analyzer');
+const Iff = require('./util/iff.js');
 
 const kServerType = {
     LOGIN_SERVER: 0,
     GAME_SEVER: 1
 }
 
-function getCurrentDateAsSYSTEMTIME() {
+function getCurrentDateAsSYSTEMTIME(_dt = new Date()) {
 
     const st = Buffer.alloc(16);
 
-    const dt = new Date();
-
-    st.writeUInt16LE(dt.getFullYear(), 0);
-    st.writeUInt16LE(dt.getMonth(), 2);
-    st.writeUInt16LE(dt.getDay(), 4);
-    st.writeUInt16LE(dt.getDate(), 6);
-    st.writeUInt16LE(dt.getHours(), 8);
-    st.writeUInt16LE(dt.getMinutes(), 10);
-    st.writeUInt16LE(dt.getSeconds(), 12);
-    st.writeUInt16LE(dt.getMilliseconds(), 14);
+    st.writeUInt16LE(_dt.getFullYear(), 0);
+    st.writeUInt16LE(_dt.getMonth(), 2);
+    st.writeUInt16LE(_dt.getDay(), 4);
+    st.writeUInt16LE(_dt.getDate(), 6);
+    st.writeUInt16LE(_dt.getHours(), 8);
+    st.writeUInt16LE(_dt.getMinutes(), 10);
+    st.writeUInt16LE(_dt.getSeconds(), 12);
+    st.writeUInt16LE(_dt.getMilliseconds(), 14);
 
     return st;
 }
+
+function getNowDateAsSeconds() {
+    return Math.round(Date.now() / 1000);
+}
+
+const sIff = new Iff('./data/pangya_th.iff');
 
 class THSnapshotServer {
 
@@ -102,6 +107,7 @@ class THSnapshotServer {
                     _socket.player_caddies = [];
                     _socket.player_mascots = [];
                     _socket.player_warehouse_items = [];
+                    _socket.player_cards = [];
 
                     _socket.player_lounge_effect = {
                         big_head: 1.0,
@@ -157,12 +163,24 @@ class THSnapshotServer {
 
                         if (this.player_ei_clubset) {
                             
+                            const iff_clubset = sIff.findItem('ClubSet.iff', this.player_ei_clubset.readUInt32LE(4));
+
                             this.player_ei_csi = Buffer.alloc(28);
 
                             this.player_ei_csi.writeInt32LE(this.player_ei_clubset.readInt32LE(0));
                             this.player_ei_csi.writeUInt32LE(this.player_ei_clubset.readUInt32LE(4), 4);
                             this.player_ei_clubset.copy(this.player_ei_csi, 8, 12, 22);
-                            this.player_ei_clubset.copy(this.player_ei_csi, 18, 170, 182);
+
+                            if (iff_clubset) {
+
+                                for (let i = 0; i < 5; i++)
+                                    this.player_ei_csi.writeUInt16LE(
+                                        iff_clubset.readUInt16LE(194 + i * 2) + this.player_ei_clubset.readUInt16LE(170 + i * 2),
+                                        18 + i * 2
+                                    );
+
+                            }else
+                                this.player_ei_clubset.copy(this.player_ei_csi, 18, 170, 180);
                         }
                     }
 
@@ -228,6 +246,14 @@ class THSnapshotServer {
                         return this.player_warehouse_items.filter(el => el.readInt32LE(4) == _typeid).shift();
                     }
 
+                    _socket.findCard = function(_id) {
+                        return this.player_cards.filter(el => el.readInt32LE(0) == _id).shift();
+                    }
+
+                    _socket.findCardByTypeid = function(_typeid) {
+                        return this.player_cards.filter(el => el.readUInt32LE(4) == _typeid).shift();
+                    }
+
                     return false;
                 }
                 .bind(this)
@@ -236,6 +262,8 @@ class THSnapshotServer {
                 3,
                 true,
                 function(_pckt, _socket) {
+
+                    _pckt.Discart(4);
 
                     const p = new Packet(0x40);
 
@@ -291,7 +319,24 @@ class THSnapshotServer {
                     _socket.room.modo = modo;
                     _socket.room.name = name;
 
-                    const p = new Packet(0x4A);
+                    _socket.player_room_number = _socket.room.number;
+
+                    const p = new Packet(0x46);
+
+                    p.Encode1(3);
+                    p.Encode1(1);
+                    p.Encode4(_socket.player_uid);
+                    p.Encode4(_socket.player_oid);
+                    p.Encode2(_socket.player_room_number);
+                    p.EncodeStrWithFixedSize(_socket.player_id, 22);
+                    p.Encode1(_socket.player_level);
+                    p.fillZeroByte(8);
+                    p.Encode4(1000);
+                    p.fillZeroByte(154);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x4A);
 
                     p.Encode2(-1);
                     p.Encode1(_socket.room.tipo);
@@ -330,6 +375,8 @@ class THSnapshotServer {
                     p.Encode1(_socket.room.tipo_ex);
                     p.fillZeroByte(24);
 
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
                     p.reset(0x48);
 
                     p.Encode1(7);
@@ -347,17 +394,46 @@ class THSnapshotServer {
                     else
                         p.Encode4(0x4000000);
 
-                    p.fillZeroByte(287);
+                    p.fillZeroByte(26);
+                    p.Encode1(_socket.player_level);
+                    p.fillZeroByte(22);
+                    p.Encode4(_socket.player_uid);
+                    p.fillZeroByte(240);
 
                     if (_socket.player_ei_character)
                         p.EncodeBuffer(_socket.player_ei_character);
                     else {
 
                         p.Encode4(0x4000000);
-                        p.fillZeroByte(509);
+                        p.Encode4(10);
+                        p.fillZeroByte(505);
                     }
 
                     p.Encode1(0);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x47);
+
+                    p.Encode1(1);
+                    p.Encode1(1);
+                    p.Encode2(-1);
+                    p.EncodeStrWithFixedSize(_socket.room.name, 64);
+                    p.Encode1(1);
+                    p.Encode1(1);
+                    p.Encode1(0);
+                    p.Encode1(_socket.room.max_player);
+                    p.Encode1(1);
+                    p.fillZeroByte(17);
+                    p.Encode1(30);
+                    p.Encode1(_socket.room.qntd_hole);
+                    p.Encode1(_socket.room.tipo);
+                    p.Encode1(_socket.room.number);
+                    p.Encode1(_socket.room.modo);
+                    p.Encode1(_socket.room.course);
+                    p.fillZeroByte(100);
+                    p.Encode1(_socket.room.tipo_ex);
+                    p.fillZeroByte(24);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -569,6 +645,75 @@ class THSnapshotServer {
                 .bind(this)
             ),
             new PacketCallback(
+                0xF,
+                false,
+                function(_pckt, _socket, _ret) {
+
+                    if (_socket.room.tipo == 0x13 || _socket.player_room_number == -1)
+                        return false;
+
+                    _socket.player_room_number = -1;
+
+                    const p = new Packet(0x48);
+
+                    p.Encode1(2);
+                    p.Encode2(-1);
+                    p.Encode4(_socket.player_oid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x46);
+
+                    p.Encode1(3);
+                    p.Encode1(1);
+                    p.Encode4(_socket.player_uid);
+                    p.Encode4(_socket.player_oid);
+                    p.Encode2(_socket.player_room_number);
+                    p.EncodeStrWithFixedSize(_socket.player_id, 22);
+                    p.Encode1(_socket.player_level);
+                    p.fillZeroByte(8);
+                    p.Encode4(1000);
+                    p.fillZeroByte(154);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x47);
+
+                    p.Encode1(1);
+                    p.Encode1(2);
+                    p.Encode2(-1);
+                    p.EncodeStrWithFixedSize(_socket.room.name, 64);
+                    p.Encode1(1);
+                    p.Encode1(1);
+                    p.Encode1(0);
+                    p.Encode1(_socket.room.max_player);
+                    p.Encode1(1);
+                    p.fillZeroByte(17);
+                    p.Encode1(30);
+                    p.Encode1(_socket.room.qntd_hole);
+                    p.Encode1(_socket.room.tipo);
+                    p.Encode1(_socket.room.number);
+                    p.Encode1(_socket.room.modo);
+                    p.Encode1(_socket.room.course);
+                    p.fillZeroByte(100);
+                    p.Encode1(_socket.room.tipo_ex);
+                    p.fillZeroByte(24);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x4C);
+
+                    p.Encode2(-1);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    _ret.skip = true;
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
                 0x11,
                 true,
                 function(_pckt, _socket) {
@@ -591,7 +736,7 @@ class THSnapshotServer {
                     const p = new Packet(0x5A);
 
                     p.Encode4(_pckt.Decode4());
-                    p.Encode4(randomInt(0, 0x7FFFFFFF));
+                    p.Encode4(randomInt(0, 0x7FFF));
                     p.Encode4(_socket.player_oid);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -626,11 +771,11 @@ class THSnapshotServer {
 
                     _socket.par_hole = _pckt.Decode1();
                     _socket.total_shot += _socket.shot;
-                    _socket.total_pang += _socket.player_pang;
-                    _socket.total_bonus_pang += _socket.player_bonus_pang;
+                    _socket.total_gpang += _socket.player_gpang;
+                    _socket.total_gbonus_pang += _socket.player_gbonus_pang;
                     _socket.shot = 0;
-                    _socket.player_pang = 0n;
-                    _socket.player_bonus_pang = 0n;
+                    _socket.player_gpang = 0n;
+                    _socket.player_gbonus_pang = 0n;
 
                     const p = new Packet(0x9E);
 
@@ -679,8 +824,8 @@ class THSnapshotServer {
                     for (let i = 0; i < 38; i++)
                         ssd[i] ^= _socket.room.key[i % 16];
 
-                    _socket.player_pang = BigInt(ssd.readUInt32LE(19)) - _socket.total_pang;
-                    _socket.player_bonus_pang = BigInt(ssd.readUInt32LE(23)) - _socket.total_bonus_pang;
+                    _socket.player_gpang = BigInt(ssd.readUInt32LE(19)) - _socket.total_gpang;
+                    _socket.player_gbonus_pang = BigInt(ssd.readUInt32LE(23)) - _socket.total_gbonus_pang;
                     _socket.player_shot++;
 
                     const p = new Packet(0x6E);
@@ -846,8 +991,8 @@ class THSnapshotServer {
                         p.Encode1(_socket.holes[_socket.hole_seq]);
                         p.Encode1(_socket.total_shot);
                         p.Encode4(_socket.player_shot - _socket.par_hole);
-                        p.Encode8(_socket.player_pang);
-                        p.Encode8(_socket.player_bonus_pang);
+                        p.Encode8(_socket.player_gpang);
+                        p.Encode8(_socket.player_gbonus_pang);
                         p.Encode1(1);
 
                         _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -864,8 +1009,8 @@ class THSnapshotServer {
                         p.Encode1(_socket.holes[_socket.hole_seq]);
                         p.Encode1(_socket.total_shot);
                         p.Encode4(_socket.player_shot - _socket.par_hole);
-                        p.Encode8(_socket.player_pang);
-                        p.Encode8(_socket.player_bonus_pang);
+                        p.Encode8(_socket.player_gpang);
+                        p.Encode8(_socket.player_gbonus_pang);
                         p.Encode1(1);
 
                         _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -949,11 +1094,22 @@ class THSnapshotServer {
                                 pcl.write(pcl.readUInt16LE(stat * 2) + 1, stat * 2);
                             else if (opt == 3)
                                 pcl.write(pcl.readUInt16LE(stat * 2) - 1, stat * 2);
+
+                            // update
+                            if (_socket.player_clubset() == clubset.readInt32LE(0))
+                                _socket.player_clubset(clubset.readInt32LE(0));
                         }
 
-                        const p = new Packet(0xA5);
+                        const p = new Packet(0xC8);
 
-                        p.Encode1(opt / 2 + 1);
+                        p.Encode8(_socket.player_pang ? _socket.player_pang : 100000n);
+                        p.Encode8(0);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0xA5);
+
+                        p.Encode1(Math.floor(opt / 2) + 1);
                         p.Encode1(opt % 2);
                         p.Encode1(stat);
                         p.Encode4(item_id);
@@ -1032,7 +1188,30 @@ class THSnapshotServer {
                 true,
                 function(_pckt, _socket) {
 
-                    const p = new Packet(0xF5);
+                    const p = new Packet(0x46);
+
+                    p.Encode1(1);
+                    p.Encode1(1);
+                    p.Encode4(_socket.player_uid);
+                    p.Encode4(_socket.player_oid);
+                    p.Encode2(_socket.player_room_number);
+                    p.EncodeStrWithFixedSize(_socket.player_id, 22);
+                    p.Encode1(_socket.player_level);
+                    p.fillZeroByte(8);
+                    p.Encode4(1000);
+                    p.fillZeroByte(154);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x47);
+
+                    p.Encode1(0);
+                    p.Encode1(0);
+                    p.Encode2(-1);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0xF5);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -1045,7 +1224,59 @@ class THSnapshotServer {
                 true,
                 function(_pckt, _socket) {
 
-                    const p = new Packet(0xF6);
+                    const p = new Packet(0x46);
+
+                    p.Encode1(2);
+                    p.Encode1(1);
+                    p.Encode4(_socket.player_uid);
+                    p.Encode4(_socket.player_oid);
+                    p.Encode2(_socket.player_room_number);
+                    p.EncodeStrWithFixedSize(_socket.player_id, 22);
+                    p.Encode1(_socket.player_level);
+                    p.fillZeroByte(8);
+                    p.Encode4(1000);
+                    p.fillZeroByte(154);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0xF6);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0xBD,
+                true,
+                function(_pckt, _socket) {
+
+                    let typeid = _pckt.Decode4();
+
+                    const card = _socket.findCardByTypeid(typeid);
+                    const iff_card = sIff.findItem('Card.iff', typeid);
+
+                    if (!card || !iff_card) {
+
+                        const p = new Packet(0x160);
+
+                        p.Encode4(1);
+
+                        return false;
+                    }
+
+                    const p = new Packet(0x160);
+
+                    p.Encode4(0);
+
+                    p.Encode4(card.readInt32LE(0));
+                    p.Encode4(typeid);
+                    p.fillZeroByte(12);
+                    p.Encode4(1);
+                    p.EncodeBuffer(getCurrentDateAsSYSTEMTIME());
+                    p.EncodeBuffer(getCurrentDateAsSYSTEMTIME(new Date(Date.now() + 60000 * iff_card.readUInt16LE(344))));
+                    p.Encode2(0);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -1291,7 +1522,7 @@ class THSnapshotServer {
 
                     const p = new Packet(0x216);
 
-                    p.Encode4((new Date()).getTime() & 0xFFFFFFFF);
+                    p.Encode4(getNowDateAsSeconds());
                     p.Encode4(1);
                     p.Encode1(2);
                     p.Encode4(assist.readUInt32LE(4));
@@ -1342,27 +1573,37 @@ class THSnapshotServer {
 
                     const character = _socket.findCharacter(cibf.readInt32LE(4));
 
-                    if (character)
+                    if (character) {
+
                         cibf.copy(character);
 
-                    const p = new Packet(0x216);
+                        const p = new Packet(0x216);
 
-                    p.Encode4((new Date()).getTime() & 0xFFFFFFFF);
-                    p.Encode4(1);
-                    p.Encode1(0xC9);
-                    p.EncodeBuffer(cibf.slice(0, 8));
-                    p.fillZeroByte(16);
-                    p.EncodeBuffer(cibf.slice(456, 10));
-                    p.fillZeroByte(15);
+                        p.Encode4(getNowDateAsSeconds());
+                        p.Encode4(1);
+                        p.Encode1(0xC9);
+                        p.EncodeBuffer(character.slice(0, 8));
+                        p.fillZeroByte(16);
+                        p.EncodeBuffer(character.slice(456, 10));
+                        p.fillZeroByte(15);
 
-                    _socket.write(p.makePacketComplete(_socket.parseKey));
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
 
-                    p.reset(0x26F);
+                        p.reset(0x26F);
 
-                    p.Encode4(0);
-                    p.Encode4(stat);
+                        p.Encode4(0);
+                        p.Encode4(stat);
 
-                    _socket.write(p.makePacketComplete(_socket.parseKey));
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    }else {
+                        
+                        const p = new Packet(0x26F);
+
+                        p.Encode4(1);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+                    }
 
                     return false;
                 }
@@ -1379,25 +1620,183 @@ class THSnapshotServer {
 
                     const character = _socket.findCharacter(cibf.readInt32LE(4));
 
-                    if (character)
+                    if (character) {
+
                         cibf.copy(character);
+
+                        const p = new Packet(0x216);
+
+                        p.Encode4(getNowDateAsSeconds());
+                        p.Encode4(1);
+                        p.Encode1(0xC9);
+                        p.EncodeBuffer(character.slice(0, 8));
+                        p.fillZeroByte(16);
+                        p.EncodeBuffer(character.slice(456, 10));
+                        p.fillZeroByte(15);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0x270);
+
+                        p.Encode4(0);
+                        p.Encode4(stat);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    }else {
+                        
+                        const p = new Packet(0x270);
+
+                        p.Encode4(1);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+                    }
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x18A,
+                true,
+                function(_pckt, _socket) {
+
+                    let char_typeid = _pckt.Decode4();
+                    let char_id = _pckt.Decode4(true);
+                    let card_typeid = _pckt.Decode4();
+                    let card_id = _pckt.Decode4(true);
+                    let char_card_slot = _pckt.Decode4();
+
+                    const character = _socket.findCharacter(char_id);
+
+                    if (!character) {
+
+                        const p = new Packet(0x271);
+
+                        p.Encode4(1);
+
+                        return false;
+                    }
+
+                    character.writeUInt32LE(card_typeid, 465 + (char_card_slot - 1) * 4);
 
                     const p = new Packet(0x216);
 
-                    p.Encode4((new Date()).getTime() & 0xFFFFFFFF);
+                    p.Encode4(getNowDateAsSeconds());
                     p.Encode4(1);
-                    p.Encode1(0xC9);
-                    p.EncodeBuffer(cibf.slice(0, 8));
-                    p.fillZeroByte(16);
-                    p.EncodeBuffer(cibf.slice(456, 10));
-                    p.fillZeroByte(15);
+                    p.Encode1(0xCB);
+                    p.Encode4(char_typeid);
+                    p.Encode4(char_id);
+                    p.fillZeroByte(36);
+                    p.Encode4(card_typeid);
+                    p.Encode4(char_card_slot);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
-                    p.reset(0x270);
+                    p.reset(0x271);
 
                     p.Encode4(0);
-                    p.Encode4(stat);
+
+                    p.Encode4(card_typeid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x18B,
+                true,
+                function(_pckt, _socket) {
+
+                    let char_typeid = _pckt.Decode4();
+                    let char_id = _pckt.Decode4(true);
+                    let card_typeid = _pckt.Decode4();
+                    let card_id = _pckt.Decode4(true);
+                    let char_card_slot = _pckt.Decode4();
+
+                    const character = _socket.findCharacter(char_id);
+
+                    if (!character) {
+
+                        const p = new Packet(0x272);
+
+                        p.Encode4(1);
+
+                        return false;
+                    }
+
+                    character.writeUInt32LE(card_typeid, 465 + (char_card_slot - 1) * 4);
+
+                    const p = new Packet(0x216);
+
+                    p.Encode4(getNowDateAsSeconds());
+                    p.Encode4(1);
+                    p.Encode1(0xCB);
+                    p.Encode4(char_typeid);
+                    p.Encode4(char_id);
+                    p.fillZeroByte(36);
+                    p.Encode4(card_typeid);
+                    p.Encode4(char_card_slot);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x272);
+
+                    p.Encode4(0);
+
+                    p.Encode4(card_typeid);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0x18C,
+                true,
+                function(_pckt, _socket) {
+
+                    let char_typeid = _pckt.Decode4();
+                    let char_id = _pckt.Decode4(true);
+                    let removedor_typeid = _pckt.Decode4();
+                    let removedor_id = _pckt.Decode4(true);
+                    let char_card_slot = _pckt.Decode4();
+
+                    const character = _socket.findCharacter(char_id);
+
+                    if (!character) {
+
+                        const p = new Packet(0x273);
+
+                        p.Encode4(1);
+
+                        return false;
+                    }
+
+                    let card_typeid = character.readUInt32LE(465 + (char_card_slot - 1) * 4);
+                    character.writeUInt32LE(0, 465 + (char_card_slot - 1) * 4);
+
+                    const p = new Packet(0x216);
+
+                    p.Encode4(getNowDateAsSeconds());
+                    p.Encode4(1);
+                    p.Encode1(0xCB);
+                    p.Encode4(char_typeid);
+                    p.Encode4(char_id);
+                    p.fillZeroByte(36);
+                    p.Encode4(0);
+                    p.Encode4(char_card_slot);
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                    p.reset(0x273);
+
+                    p.Encode4(0);
+
+                    p.Encode4(card_typeid);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -1509,11 +1908,11 @@ class THSnapshotServer {
                     if (opt == 0) {
 
                         let client_version = _pckt.DecodeStr();
-                        let room_number = _pckt.Decode2(true);
+                        _socket.player_room_number = _pckt.Decode2(true);
 
                         _pckt.Discart(22);
 
-                        _socket.player_nickname = _pckt.DecodeBuffer(22).toString('utf8');
+                        _socket.player_nickname = _pckt.DecodeFixedStr(22, 'utf8');
 
                         _pckt.Discart(45);
 
@@ -1523,13 +1922,21 @@ class THSnapshotServer {
 
                         this.player_uid = _pckt.Decode4();
 
+                        _pckt.Discart(74);
+
+                        this.player_exp = _pckt.Decode4();
+                        this.player_level = _pckt.Decode1();
+                        this.player_pang = _pckt.Decode8();
+
                         console.log(`[S][G] Login Game Server Ok, Client Version: ${
                             client_version
                         }, Room Number: ${
-                            room_number
-                        }, OID: ${this.player_oid}, UID: ${this.player_uid}`);
+                            _socket.player_room_number
+                        }, OID: ${this.player_oid}, UID: ${this.player_uid}, Level: ${
+                            this.player_level
+                        }, Exp: ${this.player_exp}, Pang: ${this.player_pang}`);
                         
-                        _pckt.Discart(11926);
+                        _pckt.Discart(11839);
 
                         // block flag
                         _pckt.Encode8(0x3332F5FFCn);
@@ -1552,7 +1959,7 @@ class THSnapshotServer {
                     if (_pckt.Decode1() != 0)
                         _pckt.Discart(4);
 
-                    _socket.room.name = _pckt.DecodeBuffer(64).toString('utf8');
+                    _socket.room.name = _pckt.DecodeFixedStr(64, 'utf8');
                     _pckt.Discart(3);
                     _socket.room.max_player = _pckt.Decode1();
                     _pckt.Discart(1);
@@ -1649,6 +2056,25 @@ class THSnapshotServer {
                     return false;
                 }
                 .bind(this)
+            ),
+            new PacketCallback(
+                0x138,
+                false,
+                function(_pckt, _socket) {
+
+                    let opt = _pckt.Decode4();
+
+                    if (opt != 0)
+                        return false;
+
+                    let count = _pckt.Decode2();
+
+                    for (let i = 0; i < count; i++)
+                        _socket.player_cards.push(_pckt.DecodeBuffer(58));
+
+                    return false;
+                }
+                .bind(this)
             )
         ]);
 
@@ -1700,17 +2126,17 @@ class THSnapshotServer {
         _socket.last_weather = 0;
         _socket.hole_seq = 0;
         _socket.holes = Array.from({length: 18}, (_, i) => i + 1);
-        _socket.player_pang = 0n;
-        _socket.player_bonus_pang = 0n;
+        _socket.player_gpang = 0n;
+        _socket.player_gbonus_pang = 0n;
         _socket.par_hole = 4;
         _socket.player_shot = 0;
         _socket.total_shot = 0;
-        _socket.total_pang = 0n;
-        _socket.total_bonus_pang = 0n;
+        _socket.total_gpang = 0n;
+        _socket.total_gbonus_pang = 0n;
 
         const p = new Packet(0x76);
 
-        p.Encode1(_socket.room.tipo);
+        p.Encode1(4);
         p.Encode4(1);
         p.EncodeBuffer(getCurrentDateAsSYSTEMTIME());
 

@@ -371,6 +371,15 @@ class Packet {
 		}
 	}
 
+	DecodeFixedStr(_length, _encoding = 'binary') {
+
+	    try {
+	        return this.DecodeBuffer(_length).toString(_encoding);
+	    } catch (e) {
+	        throw 'Fail to read fixed string from packet, not enough more data in packet.';
+	    }
+	}
+
 	DecodeBuffer(_size) {
 
 		if (_size <= 0)

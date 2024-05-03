@@ -3,6 +3,10 @@ Cria um snapshot do TH para jogar no practice
 
 Faça o snapshot do TH antes de os servidores serem desligados[^1].
 
+# Concluído
+Conclui o que eu queria fazer com o TH Snapshot.\
+Agora só falta testar e corrigir os bugs, vou fazer isso quando estiver com meu pc arrumado.
+
 # Feito
 - Faz o snapshot;
 - Loga normal; 
@@ -19,8 +23,8 @@ Faça o snapshot do TH antes de os servidores serem desligados[^1].
 - Active assist green;
 - Entra na lobby;
 - Sai da lobby;
-- Troca de itemslot;
-- Troca de bola;
+- Troca de itemslot[^2];
+- Troca de bola[^2];
 
 # Feito mais não testado ainda
 - Usa active item;
@@ -35,16 +39,18 @@ Faça o snapshot do TH antes de os servidores serem desligados[^1].
 - Lounge effect item (big head, e etc);
 - Manda mensagem no chat;
 - Motion in lounge;
-- Troca de character;
-- Troca de caddie;
-- Troca de clubset;
-- Troca de mascot;
-- Troca de skins;
-- Troca de roupa do character;
-- Troca de cutin do character;
-- Troca de poster;
-- Up/Downgrade character stats;
-- Up/Downgrade clubset stats.
+- Troca de character[^2];
+- Troca de caddie[^2];
+- Troca de clubset[^2];
+- Troca de mascot[^2];
+- Troca de skins[^2];
+- Troca de roupa do character[^2];
+- Troca de cutin do character[^2];
+- Troca de poster[^2];
+- Up/Downgrade character stats[^2];
+- Up/Downgrade clubset stats[^2];
+- Equipa/Desaquipa card no character[^2];
+- Usa Card Especial[^2].
 
 # Como usar
 Baixe o Node.js e Npm
@@ -62,6 +68,8 @@ No site que vai ser aberto nessa url vai ter a opção:
 
 [^1]: Não tem mais como fazer o snapshot do PangYa TH oficial, porque os servidores foram desligados: 30/04/2024 12:00(GMT+7).\
 Mas se você trocar o ip e a porta no arquivo th-snapshot.js pelo servidor privado que usa o cliente do PangYa TH você pode fazer o snapshot dele.
+
+[^2]: Qualquer mudança no character e equipamentos ela vai ser resetada quando você deslogar e logar de novo.
 
 Na pasta client-offline tem um cliente offline para usar com o Servidor TH Snapshot.
 
@@ -82,4 +90,4 @@ Não precisa de senha só logar com o id e qualquer senha que funciona.
 Se você quiser compartilhar o seu snapshot crie um [Issues](https://github.com/Acrisio-Filho/TH-Snapshot/issues) com seu snapshot que eu coloco ele aqui.
 
 # Lista de Snapshots
-- irineu123 - @Acrisio-Filho.
+- irineu123 - Acrisio-Filho.
