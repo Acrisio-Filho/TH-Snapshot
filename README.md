@@ -88,3 +88,4 @@ Se você quiser compartilhar o seu snapshot crie um [Issues](https://github.com/
 
 # Lista de Snapshots
 - irineu123 - Acrisio-Filho.
+- rafaelzdd - [rafaelzdd](https://github.com/rafaelzdd).
