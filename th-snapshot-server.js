@@ -303,7 +303,7 @@ class THSnapshotServer {
 
                         const p = new Packet(0x49);
 
-                        p.Encode2(1);
+                        p.Encode2(2);
 
                         _socket.write(p.makePacketComplete(_socket.parseKey));
 
@@ -349,7 +349,7 @@ class THSnapshotServer {
                     p.Encode1(0);
                     p.Encode4(0);
                     p.Encode4(0);
-                    p.Encode4(0);
+                    p.Encode4(0x2C000000);
                     p.Encode1(0);
                     p.EncodeStr(_socket.room.name);
 
@@ -368,10 +368,12 @@ class THSnapshotServer {
                     p.Encode1(30);
                     p.Encode1(_socket.room.qntd_hole);
                     p.Encode1(_socket.room.tipo);
-                    p.Encode1(_socket.room.number);
+                    p.Encode2(_socket.room.number);
                     p.Encode1(_socket.room.modo);
                     p.Encode1(_socket.room.course);
-                    p.fillZeroByte(100);
+                    p.fillZeroByte(8);
+                    p.Encode4(0x2C000000);
+                    p.fillZeroByte(88);
                     p.Encode1(_socket.room.tipo_ex);
                     p.fillZeroByte(24);
 
@@ -385,7 +387,7 @@ class THSnapshotServer {
 
                     p.Encode4(_socket.player_oid);
                     p.EncodeStrWithFixedSize(_socket.player_nickname, 22);
-                    p.fillZeroByte(20);
+                    p.fillZeroByte(21);
                     p.Encode1(1);
                     p.fillZeroByte(8);
 
@@ -396,9 +398,9 @@ class THSnapshotServer {
 
                     p.fillZeroByte(26);
                     p.Encode1(_socket.player_level);
-                    p.fillZeroByte(22);
+                    p.fillZeroByte(19);
                     p.Encode4(_socket.player_uid);
-                    p.fillZeroByte(240);
+                    p.fillZeroByte(236);
 
                     if (_socket.player_ei_character)
                         p.EncodeBuffer(_socket.player_ei_character);
@@ -431,7 +433,9 @@ class THSnapshotServer {
                     p.Encode1(_socket.room.number);
                     p.Encode1(_socket.room.modo);
                     p.Encode1(_socket.room.course);
-                    p.fillZeroByte(100);
+                    p.fillZeroByte(8);
+                    p.Encode4(0x2C000000);
+                    p.fillZeroByte(88);
                     p.Encode1(_socket.room.tipo_ex);
                     p.fillZeroByte(24);
 
@@ -506,12 +510,79 @@ class THSnapshotServer {
                     p.Encode1(0);
                     p.Encode4(0);
                     p.Encode4(_socket.room.time_30s);
-                    p.Encode4(0);
+                    p.Encode4(0x2C000000);
                     p.Encode1(0);
                     p.EncodeStr(_socket.room.name);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
 
+                    return false;
+                }
+                .bind(this)
+            ),
+            new PacketCallback(
+                0xB,
+                true,
+                function(_pckt, _socket) {
+
+                    let opt = _pckt.Decode1();
+
+                    switch (opt) {
+                        case 1: // caddie
+                            _socket.player_caddie(_pckt.Decode4(true));
+                            break;
+                        case 2: // ball
+                            _socket.player_ball(_pckt.Decode4());
+                            break;
+                        case 3: // clubset
+                            _socket.player_clubset(_pckt.Decode4(true));
+                            break;
+                        case 4: // character
+                            _socket.player_character(_pckt.Decode4(true));
+                            break;
+                        case 5: // mascot
+                            _socket.player_mascot(_pckt.Decode4(true));
+                            break;
+                    }
+
+                    const p = new Packet(0x4B);
+
+                    p.Encode4(0);
+
+                    p.Encode1(opt);
+                    p.Encode4(_socket.player_oid);
+
+                    switch (opt) {
+                        case 1: // caddie
+                            if (_socket.player_ei_caddie)
+                                p.EncodeBuffer(_socket.player_ei_caddie);
+                            else
+                                p.fillZeroByte(25);
+                            break;
+                        case 2: // ball
+                            p.Encode4(_socket.player_ball());
+                            break;
+                        case 3: // clubset
+                            if (_socket.player_ei_csi)
+                                p.EncodeBuffer(_socket.player_ei_csi);
+                            else
+                                p.fillZeroByte(28);
+                            break;
+                        case 4: // character
+                            if (_socket.player_ei_character)
+                                p.EncodeBuffer(_socket.player_ei_character);
+                            else
+                                p.fillZeroByte(513);
+                            break;
+                        case 5: // mascot
+                            if (_socket.player_ei_mascot)
+                                p.EncodeBuffer(_socket.player_ei_mascot);
+                            else
+                                p.fillZeroByte(62);
+                            break;
+                    }
+
+                    _socket.write(p.makePacketComplete(_socket.parseKey));
                     return false;
                 }
                 .bind(this)
@@ -695,7 +766,9 @@ class THSnapshotServer {
                     p.Encode1(_socket.room.number);
                     p.Encode1(_socket.room.modo);
                     p.Encode1(_socket.room.course);
-                    p.fillZeroByte(100);
+                    p.fillZeroByte(8);
+                    p.Encode4(0x2C000000);
+                    p.fillZeroByte(88);
                     p.Encode1(_socket.room.tipo_ex);
                     p.fillZeroByte(24);
 
@@ -1079,6 +1152,7 @@ class THSnapshotServer {
                 function(_pckt, _socket) {
 
                     let opt = _pckt.Decode1();
+                    _pckt.Discart(1);
                     let stat = _pckt.Decode1();
                     let item_id = _pckt.Decode4(true);
 
@@ -1091,9 +1165,9 @@ class THSnapshotServer {
                             const pcl = clubset.slice(12, 22);
 
                             if (opt == 1)
-                                pcl.write(pcl.readUInt16LE(stat * 2) + 1, stat * 2);
+                                pcl.writeUInt16LE(pcl.readUInt16LE(stat * 2) + 1, stat * 2);
                             else if (opt == 3)
-                                pcl.write(pcl.readUInt16LE(stat * 2) - 1, stat * 2);
+                                pcl.writeUInt16LE(pcl.readUInt16LE(stat * 2) - 1, stat * 2);
 
                             // update
                             if (_socket.player_clubset() == clubset.readInt32LE(0))
@@ -1102,7 +1176,7 @@ class THSnapshotServer {
 
                         const p = new Packet(0xC8);
 
-                        p.Encode8(_socket.player_pang ? _socket.player_pang : 100000n);
+                        p.Encode8(_socket.player_pang);
                         p.Encode8(0);
 
                         _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -1275,7 +1349,7 @@ class THSnapshotServer {
                     p.fillZeroByte(12);
                     p.Encode4(1);
                     p.EncodeBuffer(getCurrentDateAsSYSTEMTIME());
-                    p.EncodeBuffer(getCurrentDateAsSYSTEMTIME(new Date(Date.now() + 60000 * iff_card.readUInt16LE(344))));
+                    p.EncodeBuffer(getCurrentDateAsSYSTEMTIME(new Date(Date.now() + 36000000 + 60000 * iff_card.readUInt16LE(344))));
                     p.Encode2(0);
 
                     _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -1575,16 +1649,28 @@ class THSnapshotServer {
 
                     if (character) {
 
-                        cibf.copy(character);
+                        character.writeUInt8(character.readUInt8(456 + stat) + 1, 456 + stat);
 
-                        const p = new Packet(0x216);
+                        const p = new Packet(0xC8);
+
+                        p.Encode8(_socket.player_pang);
+                        p.Encode8(0n);
+
+                        _socket.write(p.makePacketComplete(_socket.parseKey));
+
+                        p.reset(0x216);
 
                         p.Encode4(getNowDateAsSeconds());
                         p.Encode4(1);
                         p.Encode1(0xC9);
-                        p.EncodeBuffer(character.slice(0, 8));
+                        p.Encode4(character.readUInt32LE(0));
+                        p.Encode4(character.readInt32LE(4));
                         p.fillZeroByte(16);
-                        p.EncodeBuffer(character.slice(456, 10));
+                        p.Encode2(character.readUInt8(456));
+                        p.Encode2(character.readUInt8(457));
+                        p.Encode2(character.readUInt8(458));
+                        p.Encode2(character.readUInt8(459));
+                        p.Encode2(character.readUInt8(460));
                         p.fillZeroByte(15);
 
                         _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -1622,16 +1708,21 @@ class THSnapshotServer {
 
                     if (character) {
 
-                        cibf.copy(character);
+                        character.writeUInt8(character.readUInt8(456 + stat) - 1, 456 + stat);
 
                         const p = new Packet(0x216);
 
                         p.Encode4(getNowDateAsSeconds());
                         p.Encode4(1);
                         p.Encode1(0xC9);
-                        p.EncodeBuffer(character.slice(0, 8));
+                        p.Encode4(character.readUInt32LE(0));
+                        p.Encode4(character.readInt32LE(4));
                         p.fillZeroByte(16);
-                        p.EncodeBuffer(character.slice(456, 10));
+                        p.Encode2(character.readUInt8(456));
+                        p.Encode2(character.readUInt8(457));
+                        p.Encode2(character.readUInt8(458));
+                        p.Encode2(character.readUInt8(459));
+                        p.Encode2(character.readUInt8(460));
                         p.fillZeroByte(15);
 
                         _socket.write(p.makePacketComplete(_socket.parseKey));
@@ -1916,30 +2007,30 @@ class THSnapshotServer {
 
                         _pckt.Discart(45);
 
-                        this.player_oid = _pckt.Decode4();
+                        _socket.player_oid = _pckt.Decode4();
 
                         _pckt.Discart(172);
 
-                        this.player_uid = _pckt.Decode4();
+                        _socket.player_uid = _pckt.Decode4();
 
                         _pckt.Discart(74);
 
-                        this.player_exp = _pckt.Decode4();
-                        this.player_level = _pckt.Decode1();
-                        this.player_pang = _pckt.Decode8();
+                        _socket.player_exp = _pckt.Decode4();
+                        _socket.player_level = _pckt.Decode1();
+                        _socket.player_pang = _pckt.Decode8();
 
                         console.log(`[S][G] Login Game Server Ok, Client Version: ${
                             client_version
                         }, Room Number: ${
                             _socket.player_room_number
-                        }, OID: ${this.player_oid}, UID: ${this.player_uid}, Level: ${
-                            this.player_level
-                        }, Exp: ${this.player_exp}, Pang: ${this.player_pang}`);
+                        }, OID: ${_socket.player_oid}, UID: ${_socket.player_uid}, Level: ${
+                            _socket.player_level
+                        }, Exp: ${_socket.player_exp}, Pang: ${_socket.player_pang}`);
                         
                         _pckt.Discart(11839);
 
                         // block flag
-                        _pckt.Encode8(0x3332F5FFCn);
+                        _pckt.Encode8(0xFFFFFFFFBFEFDFFDn);
                     }
 
                     return false;
@@ -2136,7 +2227,7 @@ class THSnapshotServer {
 
         const p = new Packet(0x76);
 
-        p.Encode1(4);
+        p.Encode1(_socket.room.tipo);
         p.Encode4(1);
         p.EncodeBuffer(getCurrentDateAsSYSTEMTIME());
 
@@ -2157,7 +2248,7 @@ class THSnapshotServer {
         p.Encode1(_socket.room.tipo);
         p.Encode1(_socket.room.modo);
         p.Encode1(_socket.room.qntd_hole);
-        p.Encode4(0);
+        p.Encode4(0x2C000000);
         p.Encode4(0);
         p.Encode4(_socket.room.time_30s);
 

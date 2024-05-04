@@ -4,8 +4,7 @@ Cria um snapshot do TH para jogar no practice
 Faça o snapshot do TH antes de os servidores serem desligados[^1].
 
 # Concluído
-Conclui o que eu queria fazer com o TH Snapshot.\
-Agora só falta testar e corrigir os bugs, vou fazer isso quando estiver com meu pc arrumado.
+Conclui o que eu queria fazer com o TH Snapshot.
 
 # Feito
 - Faz o snapshot;
@@ -17,17 +16,11 @@ Agora só falta testar e corrigir os bugs, vou fazer isso quando estiver com meu
 - Sai do Practice;
 - Troca info da sala do practice;
 - Troca o vento no hole repeat;
+- Usa active item;
 - Move ball;
 - Ativa e desativa assist;
 - Active time booster;
 - Active assist green;
-- Entra na lobby;
-- Sai da lobby;
-- Troca de itemslot[^2];
-- Troca de bola[^2];
-
-# Feito mais não testado ainda
-- Usa active item;
 - Active replay;
 - Active ring;
 - Active ring ground;
@@ -35,10 +28,14 @@ Agora só falta testar e corrigir os bugs, vou fazer isso quando estiver com meu
 - Active earcuff;
 - Active glove;
 - Active paws;
+- Entra na lobby;
+- Sai da lobby;
+- Manda mensagem no chat;
 - Cria sala Lounge;
 - Lounge effect item (big head, e etc);
-- Manda mensagem no chat;
 - Motion in lounge;
+- Troca de itemslot[^2];
+- Troca de bola[^2];
 - Troca de character[^2];
 - Troca de caddie[^2];
 - Troca de clubset[^2];
@@ -47,10 +44,10 @@ Agora só falta testar e corrigir os bugs, vou fazer isso quando estiver com meu
 - Troca de roupa do character[^2];
 - Troca de cutin do character[^2];
 - Troca de poster[^2];
-- Up/Downgrade character stats[^2];
-- Up/Downgrade clubset stats[^2];
 - Equipa/Desaquipa card no character[^2];
 - Usa Card Especial[^2].
+- Up/Downgrade character stats[^2];
+- Up/Downgrade clubset stats[^2];
 
 # Como usar
 Baixe o Node.js e Npm
